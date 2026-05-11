@@ -1,0 +1,56 @@
+-- Shadow Network Intelligence - Shell Company Detection
+-- Detect circular ownership patterns
+
+USE GRAPH FinancialGraph
+
+-- 1. Detect circular ownership chains
+CREATE QUERY detect_shell_rings(INT max_depth=3) FOR GRAPH FinancialGraph {
+    PRINT "=== Shell Company Rings ===";
+    
+    companies = {Company.*};
+    
+    // Find companies owned by other companies
+    shell_chains = SELECT c1 FROM companies:c1 -(:OWNS)- Person:p -(:OWNS)- companies:c2
+                   WHERE c1 <> c2;
+    
+    PRINT "Companies with ownership chains:", shell_chains;
+}
+
+-- 2. Find companies with same officers
+CREATE QUERY detect_same_officers(INT min_companies=3) FOR GRAPH FinancialGraph {
+    PRINT "=== Same Officer Companies ===";
+    
+    officers = SELECT p FROM Person:p -(:OWNS)- Company:c
+               GROUP BY p
+               HAVING count(c) >= min_companies;
+    
+    PRINT "Officers with multiple companies:", officers;
+}
+
+-- 3. Trace beneficial ownership to ultimate owner
+CREATE QUERY trace_beneficial_owner(STRING company_id, INT max_depth=5) FOR GRAPH FinancialGraph {
+    PRINT "=== Beneficial Ownership Trace ===";
+    
+    start_company = {Company.*};
+    
+    // Traverse backwards through ownership chain
+    owners = SELECT p FROM start_company:sc -(:OWNS)- Person:p
+            WHERE sc.id == company_id
+            OR sc.id IN (SELECT c2.id FROM Company:c1 -(:OWNS)- Person:p2 -(:OWNS)- Company:c2 WHERE c1.id == company_id);
+    
+    PRINT "Beneficial owners of", company_id, ":", owners;
+}
+
+-- 4. Calculate company network centrality
+CREATE QUERY calculate_company_risk_score(STRING company_id) FOR GRAPH FinancialGraph {
+    PRINT "=== Company Risk Score ===";
+    
+    // Get all linked entities
+    company = {Company.*};
+    linked_accounts = SELECT a FROM company:c -(:HAS_ACCOUNT_COMPANY)- BankAccount:a WHERE c.id == company_id;
+    linked_transactions = SELECT t FROM linked_accounts:a -(:TRANSFERRED_TO)- BankAccount:a2 -(:INITIATED)- Transaction:t;
+    
+    PRINT "Company:", company_id;
+    PRINT "Linked Accounts:", linked_accounts.size();
+    PRINT "Linked Transactions:", linked_transactions.size();
+}

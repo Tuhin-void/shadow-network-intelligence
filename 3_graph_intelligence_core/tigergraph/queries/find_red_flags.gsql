@@ -1,0 +1,84 @@
+-- Shadow Network Intelligence - Red Flag Detection
+-- Find suspicious patterns in transactions and entities
+
+USE GRAPH FinancialGraph
+
+-- 1. Find transactions over threshold (potential structuring)
+CREATE QUERY find_large_transactions(FLOAT threshold=10000) FOR GRAPH FinancialGraph {
+    PRINT "=== Large Transactions ===";
+    start = {Transaction.*};
+    result = SELECT t FROM start:t
+             WHERE t.amount >= threshold
+             AND t.is_suspicious == false
+             ORDER BY t.amount DESC
+             LIMIT 50;
+    PRINT result;
+}
+
+-- 2. Find rapid transfer patterns
+CREATE QUERY find_rapid_transfers(INT min_transfers=5, INT time_window_hours=24) FOR GRAPH FinancialGraph {
+    PRINT "=== Rapid Transfer Patterns ===";
+    
+    // Find accounts with frequent transfers
+    accounts = {BankAccount.*};
+    
+    transfers = SELECT t FROM accounts:acc -(:e)- Transaction:t
+                WHERE to_datetime(t.date) > datetime_sub(now(), interval_of(time_window_hours hour))
+                ACCUM t.is_suspicious = true;
+    
+    result = SELECT acc FROM accounts:acc, transfers:t
+            WHERE count(t) >= min_transfers
+            ORDER BY count(t) DESC;
+    
+    PRINT result;
+}
+
+-- 3. Find entities with high risk scores
+CREATE QUERY find_high_risk_entities(FLOAT min_risk=0.7) FOR GRAPH FinancialGraph {
+    PRINT "=== High Risk Entities ===";
+    
+    persons = {Person.*};
+    companies = {Company.*};
+    
+    high_risk_persons = SELECT p FROM persons:p
+                        WHERE p.risk_score >= min_risk
+                        AND p.is_flagged == false;
+    
+    high_risk_companies = SELECT c FROM companies:c
+                          WHERE c.risk_score >= min_risk
+                          AND c.is_flagged == false;
+    
+    PRINT "High Risk Persons:", high_risk_persons;
+    PRINT "High Risk Companies:", high_risk_companies;
+}
+
+-- 4. Find same-address entities (potential shell companies)
+CREATE QUERY find_address_collisions(INT min_entities=3) FOR GRAPH FinancialGraph {
+    PRINT "=== Address Collisions ===";
+    
+    addresses = {Address.*};
+    result = SELECT a FROM addresses:a -(:LOCATED_AT)- Person:p
+            GROUP BY a
+            HAVING count(p) >= min_entities
+            ORDER BY count(p) DESC;
+    
+    PRINT result;
+}
+
+-- 5. Flag transaction for SAR review
+CREATE QUERY flag_for_review(STRING entity_id, STRING reason) FOR GRAPH FinancialGraph {
+    PRINT "=== Flagging Entity ===";
+    
+    person = {Person.*};
+    company = {Company.*};
+    
+    flagged_person = SELECT p FROM person:p
+                    WHERE p.id == entity_id
+                    ACCUM p.is_flagged = true;
+    
+    flagged_company = SELECT c FROM company:c
+                      WHERE c.id == entity_id
+                      ACCUM c.is_flagged = true;
+    
+    PRINT "Flagged:", entity_id, "Reason:", reason;
+}

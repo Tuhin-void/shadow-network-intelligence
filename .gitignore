@@ -1,0 +1,76 @@
+# Shadow Network Intelligence
+# .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.csv
+*.json
+*.txt
+!demo_data/**/*.json
+!demo_data/**/*.csv
+!cache/**/*.json
+!mock_responses/**/*.json
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment
+.env
+.env.local
+
+# Docker
+.dockerignore
+
+# Node
+node_modules/
+.npm
+
+# Build outputs
+generated_reports/
+outputs/
+
+# Benchmark results
+benchmark_results.json
+*.benchmark

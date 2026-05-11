@@ -1,0 +1,143 @@
+-- Shadow Network Intelligence - TigerGraph Schema
+-- Initialize graph for financial fraud detection
+
+// Create graph if not exists
+CREATE GRAPH FinancialGraph ()
+
+// Use the graph
+USE GRAPH FinancialGraph
+
+// Create vertex types
+CREATE VERTEX Person (
+    PRIMARY_ID id STRING,
+    name STRING,
+    ssn STRING,
+    date_of_birth STRING,
+    address STRING,
+    city STRING,
+    state STRING,
+    zip STRING,
+    country STRING,
+    occupation STRING,
+    risk_score DOUBLE,
+    created_at STRING,
+    is_flagged BOOL DEFAULT false
+) WITH primary_id as "id"
+
+CREATE VERTEX Company (
+    PRIMARY_ID id STRING,
+    name STRING,
+    ein STRING,
+    industry STRING,
+    incorporation_date STRING,
+    address STRING,
+    city STRING,
+    state STRING,
+    country STRING,
+    is_offshore BOOL,
+    annual_revenue DOUBLE,
+    employee_count INT,
+    risk_score DOUBLE,
+    created_at STRING,
+    is_flagged BOOL DEFAULT false
+) WITH primary_id as "id"
+
+CREATE VERTEX BankAccount (
+    PRIMARY_ID id STRING,
+    account_number STRING,
+    routing_number STRING,
+    type STRING,
+    owner_type STRING,
+    balance DOUBLE,
+    currency STRING,
+    opened_date STRING,
+    status STRING,
+    risk_score DOUBLE
+) WITH primary_id as "id"
+
+CREATE VERTEX Transaction (
+    PRIMARY_ID id STRING,
+    amount DOUBLE,
+    currency STRING,
+    type STRING,
+    date STRING,
+    status STRING,
+    is_suspicious BOOL DEFAULT false,
+    description STRING,
+    risk_score DOUBLE DEFAULT 0.0
+) WITH primary_id as "id"
+
+CREATE VERTEX Address (
+    PRIMARY_ID id STRING,
+    street STRING,
+    city STRING,
+    state STRING,
+    zip STRING,
+    country STRING,
+    is_offshore BOOL DEFAULT false
+) WITH primary_id as "id"
+
+CREATE VERTEX Alert (
+    PRIMARY_ID id STRING,
+    type STRING,
+    severity STRING,
+    description STRING,
+    created_at STRING,
+    status STRING DEFAULT "OPEN"
+) WITH primary_id as "id"
+
+// Create edge types
+CREATE DIRECTED EDGE OWNS (
+    FROM Person, TO Company,
+    ownership_percentage DOUBLE DEFAULT 0.0,
+    created_at STRING
+)
+
+CREATE DIRECTED EDGE TRANSFERRED_TO (
+    FROM BankAccount, TO BankAccount,
+    transaction_id STRING,
+    amount DOUBLE,
+    date STRING,
+    status STRING,
+    is_suspicious BOOL DEFAULT false
+)
+
+CREATE DIRECTED EDGE INITIATED (
+    FROM Person, TO Transaction,
+    role STRING DEFAULT "sender"
+)
+
+CREATE DIRECTED EDGE LOCATED_AT (
+    FROM Person, TO Address
+)
+
+CREATE DIRECTED EDGE LOCATED_AT_COMPANY (
+    FROM Company, TO Address
+)
+
+CREATE DIRECTED EDGE HAS_ACCOUNT (
+    FROM Person, TO BankAccount,
+    opened_date STRING,
+    status STRING DEFAULT "ACTIVE"
+)
+
+CREATE DIRECTED EDGE HAS_ACCOUNT_COMPANY (
+    FROM Company, TO BankAccount,
+    opened_date STRING,
+    status STRING DEFAULT "ACTIVE"
+)
+
+CREATE DIRECTED EDGE RELATED_TO (
+    FROM Alert, TO Person,
+    relationship_type STRING
+)
+
+// Create indices for performance
+CREATE INDEX ON Person(ssn)
+CREATE INDEX ON Person(risk_score)
+CREATE INDEX ON Company(ein)
+CREATE INDEX ON Company(is_offshore)
+CREATE INDEX ON BankAccount(routing_number)
+CREATE INDEX ON Transaction(amount)
+CREATE INDEX ON Transaction(is_suspicious)
+CREATE INDEX ON Alert(severity)
