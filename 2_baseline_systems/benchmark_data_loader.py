@@ -1,143 +1,113 @@
 """
 Shadow Network Intelligence - Benchmark Data Loader
-Loads test questions and ground truth
+
+Loads benchmark questions and ground truth. Prefers the sample dataset's
+benchmark_questions.json + fraud_ring_ground_truth.json. Falls back to a
+small hardcoded set if the dataset is unavailable.
 """
-from typing import Dict, List, Any
-from pathlib import Path
+from __future__ import annotations
+
 import json
 import logging
+from pathlib import Path
+from typing import Any
+
+from .config import DATASET_DIR
 
 logger = logging.getLogger(__name__)
 
-BENCHMARK_QUESTIONS = [
+
+FALLBACK_QUESTIONS: list[dict[str, Any]] = [
     {
         "id": "Q001",
         "category": "pattern_detection",
-        "question": "Detect all circular transaction patterns in the last 30 days",
-        "expected_patterns": ["circular"]
+        "question": "Detect all circular transaction patterns in the recent transactions.",
+        "expected_patterns": ["circular"],
     },
     {
         "id": "Q002",
         "category": "entity_search",
-        "question": "Find all shell companies with shared addresses",
-        "expected_patterns": ["shell_company", "address_collision"]
+        "question": "Find all companies sharing an address.",
+        "expected_patterns": ["shell_company", "address_collision"],
     },
     {
         "id": "Q003",
         "category": "risk_scoring",
-        "question": "What is the risk score for account ACC001?",
-        "expected_risk_min": 0.5
+        "question": "What is the risk score for account A-000001?",
+        "expected_risk_min": 0.5,
     },
     {
         "id": "Q004",
-        "category": "pattern_detection",
-        "question": "Identify potential structuring (CTR avoidance) patterns",
-        "expected_patterns": ["structuring"]
-    },
-    {
-        "id": "Q005",
-        "category": "entity_search",
-        "question": "Who are the beneficial owners of company CPY001?",
-        "expected_entities": ["Person"]
-    },
-    {
-        "id": "Q006",
-        "category": "transaction_analysis",
-        "question": "Summarize large transactions (>$10,000) this month",
-        "expected_transaction_min": 10000
-    },
-    {
-        "id": "Q007",
         "category": "network_analysis",
-        "question": "Find all entities connected to offshore jurisdiction H001",
-        "expected_patterns": ["offshore_hop"]
+        "question": "Who owns ShadowCorp Holdings?",
+        "expected_entities": ["Person"],
     },
-    {
-        "id": "Q008",
-        "category": "pattern_detection",
-        "question": "Detect rapid transfer loops in the last 24 hours",
-        "expected_patterns": ["rapid_loop"]
-    }
 ]
 
-GROUND_TRUTH = {
-    "Q001": {"is_fraud": True, "fraud_type": "circular", "entities_affected": 5},
-    "Q002": {"is_fraud": True, "fraud_type": "shell_company", "entities_affected": 8},
-    "Q003": {"is_fraud": True, "risk_level": "HIGH"},
-    "Q004": {"is_fraud": True, "fraud_type": "structuring", "entities_affected": 3}
-}
 
 class BenchmarkDataLoader:
-    """
-    Loads and manages benchmark test data.
-    """
-    
-    def __init__(self, data_dir: str = "tests/benchmark_questions"):
-        self.data_dir = Path(data_dir)
-        self.questions = BENCHMARK_QUESTIONS
-        self.ground_truth = GROUND_TRUTH
-    
-    def get_questions(self, category: str = None) -> List[Dict]:
-        """Get benchmark questions, optionally filtered by category"""
+    """Loads and manages benchmark test data."""
+
+    def __init__(self, dataset_dir: Path | None = None):
+        self.dataset_dir = Path(dataset_dir) if dataset_dir else DATASET_DIR
+        self.questions: list[dict[str, Any]] = self._load_questions()
+        self.fraud_ring: dict[str, Any] = self._load_fraud_ring()
+
+    def _load_questions(self) -> list[dict[str, Any]]:
+        path = self.dataset_dir / "benchmarks" / "benchmark_questions.json"
+        if path.exists():
+            with path.open() as f:
+                raw = json.load(f)
+            for i, q in enumerate(raw, start=1):
+                q.setdefault("id", f"Q{i:03d}")
+            return raw
+        logger.warning("Sample benchmark questions not found at %s; using fallback set", path)
+        return FALLBACK_QUESTIONS
+
+    def _load_fraud_ring(self) -> dict[str, Any]:
+        path = self.dataset_dir / "benchmarks" / "fraud_ring_ground_truth.json"
+        if path.exists():
+            with path.open() as f:
+                return json.load(f)
+        return {}
+
+    def get_questions(self, category: str | None = None) -> list[dict[str, Any]]:
         if category:
             return [q for q in self.questions if q.get("category") == category]
         return self.questions
-    
-    def get_ground_truth(self, question_id: str) -> Dict:
-        """Get ground truth for a question"""
-        return self.ground_truth.get(question_id, {})
-    
-    def load_custom_questions(self, filepath: str) -> List[Dict]:
-        """Load custom questions from JSON file"""
+
+    def load_custom_questions(self, filepath: str | Path) -> list[dict[str, Any]]:
         path = Path(filepath)
         if not path.exists():
-            logger.warning(f"Custom questions file not found: {filepath}")
+            logger.warning("Custom questions file not found: %s", filepath)
             return []
-        
         try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load questions: {e}")
+            with path.open() as f:
+                data = json.load(f)
+            for i, q in enumerate(data, start=1):
+                q.setdefault("id", f"CUSTOM_{i:03d}")
+            return data
+        except Exception as exc:
+            logger.error("Failed to load questions: %s", exc)
             return []
-    
-    def validate_answer(
-        self,
-        question_id: str,
-        answer: Dict
-    ) -> Dict[str, Any]:
+
+    def evaluate_against_ground_truth(self, answer_text: str) -> dict[str, Any]:
         """
-        Validate answer against ground truth.
-        Returns accuracy score and feedback.
+        Tiny rubric: did the answer mention the fraud-ring entities or
+        the shared address? Used as a coarse signal, not real accuracy.
         """
-        truth = self.get_ground_truth(question_id)
-        
-        if not truth:
-            return {"accuracy": None, "feedback": "No ground truth available"}
-        
-        correct = 0
-        total = 0
-        
-        if "is_fraud" in truth:
-            total += 1
-            if answer.get("is_fraud") == truth["is_fraud"]:
-                correct += 1
-        
-        if "fraud_type" in truth:
-            total += 1
-            if answer.get("fraud_type") == truth["fraud_type"]:
-                correct += 1
-        
-        if "risk_level" in truth:
-            total += 1
-            if answer.get("risk_level") == truth["risk_level"]:
-                correct += 1
-        
-        accuracy = correct / total if total > 0 else 0
-        
+        if not self.fraud_ring or not answer_text:
+            return {"score": None, "matched_entities": [], "matched_address": False}
+
+        text = answer_text.lower()
+        entities = self.fraud_ring.get("entities", [])
+        matched = [e for e in entities if e.lower() in text]
+        shared_addr = self.fraud_ring.get("shared_address", "")
+        addr_match = bool(shared_addr) and shared_addr.lower() in text
+
+        score = (len(matched) + (1 if addr_match else 0)) / (len(entities) + 1)
         return {
-            "accuracy": accuracy,
-            "correct": correct,
-            "total": total,
-            "feedback": "Good match" if accuracy >= 1.0 else "Partial match"
+            "score": round(score, 3),
+            "matched_entities": matched,
+            "matched_address": addr_match,
         }
