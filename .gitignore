@@ -26,7 +26,7 @@ wheels/
 venv/
 env/
 ENV/
-.venv
+.venv/
 
 # IDE
 .vscode/
@@ -39,41 +39,74 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Project specific
+# ----------------------------
+# Project Specific
+# ----------------------------
+
+# Ignore generic data files
+*.csv
+*.txt
+
+# IMPORTANT:
+# Allow JSON files
+!*.json
+
+# Allow project datasets
 !shadow_network_sample_dataset/**/*.csv
 !shadow_network_sample_dataset/**/*.json
 !shadow_network_sample_dataset/**/*.md
-*.csv
-*.json
-*.txt
+
+# Allow demo/mock/cache JSONs
 !demo_data/**/*.json
 !demo_data/**/*.csv
 !cache/**/*.json
 !mock_responses/**/*.json
 
+# ----------------------------
 # Logs
+# ----------------------------
 *.log
 logs/
 
+# ----------------------------
 # Database
+# ----------------------------
 *.db
 *.sqlite3
 
+# ----------------------------
 # Environment
+# ----------------------------
 .env
 .env.local
 
+# ----------------------------
 # Docker
+# ----------------------------
 .dockerignore
 
+# ----------------------------
 # Node
+# ----------------------------
 node_modules/
-.npm
+.npm/
 
-# Build outputs
+# ----------------------------
+# Build Outputs
+# ----------------------------
+
 generated_reports/
-outputs/
 
-# Benchmark results
+# IMPORTANT:
+# Keep outputs tracked
+# outputs/
+
+# IMPORTANT:
+# Keep ChromaDB tracked
+# outputs/chroma_db/
+
+# ----------------------------
+# Benchmark Results
+# ----------------------------
 benchmark_results.json
 *.benchmark

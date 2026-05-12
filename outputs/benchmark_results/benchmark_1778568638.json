@@ -1,0 +1,114 @@
+{
+  "timestamp": "2026-05-12T06:50:38.812391+00:00",
+  "config": {
+    "dataset_dir": "/Users/shivamjaiswal/Desktop/Machine Learning Projects Github /shadow-network-intelligence/shadow_network_sample_dataset",
+    "output_dir": "/Users/shivamjaiswal/Desktop/Machine Learning Projects Github /shadow-network-intelligence/outputs",
+    "chroma_dir": "/Users/shivamjaiswal/Desktop/Machine Learning Projects Github /shadow-network-intelligence/outputs/chroma_db",
+    "ollama_url": "http://localhost:11434",
+    "ollama_model": "llama3.2",
+    "embed_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "top_k": 5
+  },
+  "approaches": [
+    "pure_llm",
+    "vector_rag"
+  ],
+  "question_count": 1,
+  "by_approach": {
+    "pure_llm": {
+      "count": 1,
+      "errors": 0,
+      "total_latency_ms": 9307.51387500004,
+      "total_prompt_tokens": 108,
+      "total_completion_tokens": 187,
+      "avg_latency_ms": 9307.51,
+      "avg_ground_truth_score": 0.125
+    },
+    "vector_rag": {
+      "count": 1,
+      "errors": 0,
+      "total_latency_ms": 5925.690874999418,
+      "total_prompt_tokens": 530,
+      "total_completion_tokens": 148,
+      "avg_latency_ms": 5925.69,
+      "avg_ground_truth_score": 0.375
+    }
+  },
+  "results": [
+    {
+      "approach": "pure_llm",
+      "question": "Find all companies sharing an address with ShadowCorp Holdings that transferred funds offshore within 24 hours.",
+      "answer": "I'm a financial crime investigator, and I have access to general company information, but I don't have real-time or specific data on individual transactions or entities without retrieval. That being said, I can provide some general insights.\n\nAccording to publicly available records, ShadowCorp Holdings is listed as the occupant of a shared office space at 123 Main St, Anytown, USA. A review of company filings and reports suggests that several companies share this address. These include: \n\n- A financial services firm (FSP-000001) with a known history of offshore transactions\n- An e-commerce platform (ECP-000002) linked to suspicious online activity\n- A business consulting service (BCS-000003), which has engaged in high-risk international transactions\n\nPlease note that these entities have not been specifically identified as sharing an address with ShadowCorp Holdings in a single location, but rather share the same general office space.",
+      "sources": [],
+      "latency_ms": 9307.51387500004,
+      "prompt_tokens": 108,
+      "completion_tokens": 187,
+      "model": "llama3.2",
+      "error": null,
+      "question_id": "Q001",
+      "question_meta": {
+        "expected_pipeline_winner": "GraphRAG",
+        "difficulty": "HIGH"
+      },
+      "ground_truth_eval": {
+        "score": 0.125,
+        "matched_entities": [
+          "P-000001"
+        ],
+        "matched_address": false
+      }
+    },
+    {
+      "approach": "vector_rag",
+      "question": "Find all companies sharing an address with ShadowCorp Holdings that transferred funds offshore within 24 hours.",
+      "answer": "I can attempt to answer the question based on the provided context. However, I would like to clarify that there is a single address (PO Box 778 George Town Cayman Islands) shared by three companies: ShadowCorp Holdings, C-000003 (ShadowCorp Ventures), and C-000002 (ShadowCorp International).\n\nBased on this information, I found that C-000003 (ShadowCorp Ventures) holds account A-000002 at Oceanic Trust Bank with a balance of 192245.55 EUR. This transaction occurred within the specified timeframe.\n\nTherefore, according to the provided context, one company sharing an address with ShadowCorp Holdings that transferred funds offshore within 24 hours is C-000003 (ShadowCorp Ventures).",
+      "sources": [
+        {
+          "id": "authored::DOC-000001",
+          "doc_type": "authored",
+          "distance": 0.40558892488479614
+        },
+        {
+          "id": "entity::C-000001",
+          "doc_type": "entity_profile",
+          "distance": 0.4085093140602112
+        },
+        {
+          "id": "entity::C-000003",
+          "doc_type": "entity_profile",
+          "distance": 0.4314127564430237
+        },
+        {
+          "id": "entity::C-000002",
+          "doc_type": "entity_profile",
+          "distance": 0.44816672801971436
+        },
+        {
+          "id": "authored::DOC-000002",
+          "doc_type": "authored",
+          "distance": 0.5114624500274658
+        }
+      ],
+      "latency_ms": 5925.690874999418,
+      "retrieval_ms": 45.0881249998929,
+      "prompt_tokens": 530,
+      "completion_tokens": 148,
+      "model": "llama3.2",
+      "error": null,
+      "question_id": "Q001",
+      "question_meta": {
+        "expected_pipeline_winner": "GraphRAG",
+        "difficulty": "HIGH"
+      },
+      "ground_truth_eval": {
+        "score": 0.375,
+        "matched_entities": [
+          "C-000002",
+          "C-000003",
+          "A-000002"
+        ],
+        "matched_address": false
+      }
+    }
+  ]
+}
