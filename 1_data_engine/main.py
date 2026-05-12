@@ -77,12 +77,45 @@ def generate(args):
 
 def export(args):
     """Export existing graph data to different formats"""
+    import json
+    import shutil
     logger = logging.getLogger(__name__)
     logger.info(f"Exporting from {args.input} to {args.format}")
 
-    json_path = Path(args.input) / "graph.json"
+    input_dir = Path(args.input)
+    
+    json_path = input_dir / "json" / "graph.json"
     if not json_path.exists():
-        logger.error(f"Graph file not found: {json_path}")
+        json_path = input_dir / "graph.json"
+    
+    if not json_path.exists():
+        logger.error(f"Graph file not found in {input_dir}")
+        return
+
+    if args.format == "csv":
+        csv_dir = input_dir / "csv"
+        if csv_dir.exists():
+            logger.info(f"  CSV already exists at {csv_dir}")
+        else:
+            logger.info(f"  Run 'generate' command to create CSV export")
+        logger.info("Export complete")
+        return
+        
+    elif args.format == "json":
+        root_json = input_dir / "graph.json"
+        if root_json.exists():
+            logger.info(f"  JSON already at {root_json}")
+        else:
+            shutil.copy(json_path, root_json)
+            logger.info(f"  Copied JSON to {root_json}")
+        
+    elif args.format == "tigergraph":
+        tg_dir = input_dir / "tigergraph"
+        if tg_dir.exists():
+            logger.info(f"  TigerGraph already exists at {tg_dir}")
+        else:
+            logger.info(f"  Run 'generate --tigergraph' command to create TigerGraph export")
+        logger.info("Export complete")
         return
 
     logger.info("Export complete")
