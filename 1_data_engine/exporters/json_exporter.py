@@ -36,6 +36,7 @@ class JSONExporter:
                 "accounts": [a.to_dict() for a in registry.accounts.values()],
                 "addresses": [a.to_dict() for a in registry.addresses.values()],
             },
+            "transactions": [tx.to_dict() for tx in registry.transactions.values()] if registry.transactions else [],
             "edges": [e.to_dict() for e in registry.edges.values()],
         }
         with open(path, "w") as f:

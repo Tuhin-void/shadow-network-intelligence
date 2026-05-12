@@ -1,0 +1,20 @@
+{
+  "pattern_id": "address_collision",
+  "name": "Address Collision",
+  "description": "Multiple entities sharing the same physical address - common indicator of shell companies or fraudulent accounts",
+  "severity": "HIGH",
+  "category": "ENTITY_ANOMALY",
+  "indicators": [
+    "Same address used by multiple persons",
+    "Same address used by multiple companies",
+    "Cross-entity address sharing (person + company)"
+  ],
+  "threshold": 3,
+  "gsql_query": "MATCH (a:Address)<-[:LOCATED_AT]-(e) WITH a, collect(e) as entities WHERE size(entities) >= {threshold} RETURN a, entities",
+  "risk_weight": 0.25,
+  "remediation": [
+    "Verify address legitimacy with supporting documents",
+    "Enhanced due diligence on all associated entities",
+    "Consider filing SAR if no legitimate explanation"
+  ]
+}

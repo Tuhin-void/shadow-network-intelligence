@@ -20,9 +20,16 @@ class RelationshipType(Enum):
     BENEFICIAL_OWNER_OF = "beneficial_owner_of"
     EMPLOYED_BY = "employed_by"
     RELATED_TO = "related_to"
+    USES_DEVICE = "uses_device"
+    ACCESSED_FROM = "accessed_from"
+    SENT_TRANSACTION = "sent_transaction"
+    RECEIVED_TRANSACTION = "received_transaction"
+    REGISTERED_AT = "registered_at"
+    SHARES_DEVICE_WITH = "shares_device_with"
+    SHARES_ADDRESS_WITH = "shares_address_with"
 
 
-ENTITY_TYPES = ["PERSON", "COMPANY", "ACCOUNT", "ADDRESS"]
+ENTITY_TYPES = ["PERSON", "COMPANY", "ACCOUNT", "ADDRESS", "DEVICE"]
 
 
 @dataclass

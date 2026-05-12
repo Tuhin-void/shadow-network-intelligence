@@ -14,9 +14,11 @@ class EntityRegistry:
     companies: Dict[str, Any] = field(default_factory=dict)
     accounts: Dict[str, Any] = field(default_factory=dict)
     addresses: Dict[str, Any] = field(default_factory=dict)
+    devices: Dict[str, Any] = field(default_factory=dict)
     transactions: Dict[str, Any] = field(default_factory=dict)
     edges: Dict[str, Any] = field(default_factory=dict)
     fraud_rings: Dict[str, Any] = field(default_factory=dict)
+    documents: Dict[str, Any] = field(default_factory=dict)
 
     _edge_index: Dict[str, List[str]] = field(default_factory=lambda: defaultdict(list))
     _entity_type_map: Dict[str, str] = field(default_factory=dict)

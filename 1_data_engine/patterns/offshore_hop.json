@@ -1,0 +1,28 @@
+{
+  "pattern_id": "offshore_hop",
+  "name": "Offshore Jurisdiction Hop",
+  "description": "Transfers to or from offshore jurisdictions to evade oversight",
+  "severity": "HIGH",
+  "category": "GEOGRAPHIC_RISK",
+  "indicators": [
+    "Account in offshore jurisdiction",
+    "Transactions to high-risk countries",
+    "Layered through offshore intermediaries",
+    "Wire transfers to secrecy jurisdictions"
+  ],
+  "offshore_codes": ["BS", "KY", "CH", "LU", "VG", "PA", "CR", "SC"],
+  "high_risk_jurisdictions": ["BS", "KY", "CH", "PA", "CR"],
+  "gsql_query": "MATCH (a:BankAccount)-[:LOCATED_AT]->(c:Country) WHERE c.code IN {offshore_codes} WITH a MATCH (a)-[:TRANSFERRED_TO*1..2]->(other:BankAccount) RETURN a, other",
+  "risk_weight": 0.30,
+  "fincen_high_risk": [
+    "Primary money laundering concerns",
+    "Jurisdictions with inadequate supervision",
+    "Tax evasion concerns"
+  ],
+  "remediation": [
+    "Enhanced due diligence on all offshore transactions",
+    "Request purpose of offshore account",
+    "Document business rationale",
+    "Consider blocking transaction until verified"
+  ]
+}

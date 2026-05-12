@@ -1,0 +1,31 @@
+{
+  "pattern_id": "laundering_chain",
+  "name": "Laundering Chain",
+  "description": "Layered fund transfers through multiple accounts to obscure money trail",
+  "severity": "CRITICAL",
+  "category": "TRANSACTION_ANOMALY",
+  "indicators": [
+    "Multiple hops between accounts",
+    "Increasing transaction fragmentation over time",
+    "Timing patterns (same day transfers)",
+    "Round amounts without business rationale",
+    "Consistent total amount despite fragmentation"
+  ],
+  "min_hops": 3,
+  "max_amount_variance": 0.05,
+  "phase": "layering",
+  "gsql_query": "MATCH path=(a1:BankAccount)-[:TRANSFERRED_TO*3..]->(a2:BankAccount) RETURN path",
+  "risk_weight": 0.45,
+  "stages": {
+    "placement": "Initial deposit into financial system",
+    "layering": "Multiple transfers through shell accounts",
+    "integration": "Funds returned to legitimate-looking accounts"
+  },
+  "remediation": [
+    "Map complete transaction chain",
+    "Identify all intermediary accounts",
+    "Request wire transfer records",
+    "File SAR with FinCEN",
+    "Consider currency transaction report if >$10,000"
+  ]
+}

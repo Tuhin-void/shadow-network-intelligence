@@ -1,0 +1,30 @@
+{
+  "pattern_id": "rapid_transfer_loop",
+  "name": "Rapid Transfer Loop",
+  "description": "Fast-cycling transfers between accounts - classic layering technique",
+  "severity": "HIGH",
+  "category": "TRANSACTION_ANOMALY",
+  "indicators": [
+    "Multiple transfers within short timeframe",
+    "Transfer in, immediate transfer out",
+    "Similar amounts across transfers",
+    "Net balance near zero",
+    "Same-day round trips"
+  ],
+  "min_transfers": 5,
+  "time_window_hours": 1,
+  "gsql_query": "MATCH (a1:BankAccount)-[t:TRANSFERRED_TO]->(a2:BankAccount) WITH a1, a2, t, count(*) as transfer_count WHERE transfer_count >= {min_transfers} RETURN a1, a2, transfer_count",
+  "risk_weight": 0.35,
+  "threshold_amounts": {
+    "suspicious": 5000,
+    "mandatory_review": 10000,
+    "mandatory_ctr": 10000
+  },
+  "remediation": [
+    "Block account pending review if risk_score > 0.8",
+    "Request transaction purpose",
+    "Verify account holder identity",
+    "File CTR if any single transaction > $10,000",
+    "File SAR if pattern is clearly structured"
+  ]
+}

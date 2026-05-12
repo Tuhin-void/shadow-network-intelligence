@@ -1,9 +1,7 @@
 """
-Shadow Network Intelligence - Baseline Systems Package
-Pure LLM and Vector RAG baselines.
+2_baseline_systems - Retrieval Benchmarking Framework
+Production-grade benchmark for Pure LLM, Vector RAG, and GraphRAG comparison.
 """
-from .benchmark_data_loader import BenchmarkDataLoader
-from .pure_llm import PureLLMBaseline
-from .vector_rag import VectorRAGBaseline
+__version__ = "2.0.0"
 
-__all__ = ["BenchmarkDataLoader", "PureLLMBaseline", "VectorRAGBaseline"]
+__all__ = ["__version__"]
