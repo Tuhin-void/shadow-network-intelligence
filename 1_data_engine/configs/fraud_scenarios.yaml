@@ -1,0 +1,135 @@
+fraud_scenarios:
+  circular_ownership:
+    name: "Circular Ownership Ring"
+    description: "Shell companies owning each other recursively"
+    min_companies: 3
+    max_companies: 6
+    severity: critical
+    min_hops: 3
+    expected_traversal_depth: 4
+    question_templates:
+      - "Find the circular ownership loop containing {company}"
+      - "Identify all companies in ownership cycle with {entity}"
+
+  funnel_account:
+    name: "Funnel Account Network"
+    description: "Many low-value inputs flowing to one laundering hub"
+    min_sources: 5
+    max_sources: 15
+    severity: high
+    funnel_concentration: 0.8
+    question_templates:
+      - "Find transaction funnels concentrating at {account}"
+      - "Identify accounts routing funds to {hub}"
+
+  smurfing_ring:
+    name: "Smurfing/Structuring Ring"
+    description: "Microtransactions split across many accounts below CTR threshold"
+    min_transactions: 5
+    max_transactions: 15
+    max_amount: 9000
+    severity: high
+    time_window_hours: 24
+    question_templates:
+      - "Find smurfing patterns from {source}"
+      - "Identify structuring activity around {account}"
+
+  layering_chain:
+    name: "Layering Transfer Chain"
+    description: "Funds routed through multiple hops to obscure origin"
+    min_hops: 4
+    max_hops: 7
+    severity: critical
+    amount_variance: 0.1
+    question_templates:
+      - "Trace the layering chain from {source}"
+      - "Find all downstream accounts from {entry}"
+
+  shared_address:
+    name: "Shared Address Cluster"
+    description: "Multiple suspicious entities sharing same address"
+    min_entities: 3
+    max_entities: 10
+    severity: high
+    address_types:
+      - shell_address
+      - mailbox
+    question_templates:
+      - "Find all entities at {address}"
+      - "Identify address collision clusters"
+
+  offshore_routing:
+    name: "Offshore Routing Network"
+    description: "Cross-border laundering through tax havens"
+    min_jurisdictions: 2
+    max_jurisdictions: 4
+    severity: critical
+    offshore_codes:
+      - KY
+      - VG
+      - BS
+      - PA
+      - CH
+      - LU
+    question_templates:
+      - "Find offshore routing from {entity}"
+      - "Trace cross-border laundering chain"
+
+  central_hub:
+    name: "High-Centrality Laundering Hub"
+    description: "Single node connecting multiple fraud rings"
+    min_connections: 10
+    severity: critical
+    centrality_threshold: 0.7
+    question_templates:
+      - "Find the central hub connecting fraud rings"
+      - "Identify high-betweenness accounts"
+
+  dormant_burst:
+    name: "Dormant Account Burst"
+    description: "Inactive accounts suddenly activated together"
+    dormant_days: 180
+    burst_window_hours: 48
+    min_accounts: 5
+    severity: high
+    question_templates:
+      - "Find dormant accounts activated in {timeframe}"
+      - "Identify burst activation patterns"
+
+  beneficial_ownership:
+    name: "Beneficial Ownership Obfuscation"
+    description: "Hidden indirect control chains"
+    min_depth: 3
+    max_depth: 5
+    severity: high
+    question_templates:
+      - "Find ultimate beneficial owners of {company}"
+      - "Trace control chain to {entity}"
+
+  semantic_trap:
+    name: "Semantic Ambiguity Trap"
+    description: "Similar entity names designed to confuse Vector RAG"
+    noise_count: 100
+    severity: medium
+    question_templates:
+      - "Distinguish real entity from similar named entities"
+      - "Which company is actual fraud member?"
+
+  hybrid_network:
+    name: "Hybrid Multi-Ring Structure"
+    description: "Interconnected fraud rings forming mega-network"
+    min_rings: 3
+    severity: critical
+    question_templates:
+      - "Find all connected fraud rings"
+      - "Identify mega-network structure"
+
+  temporal_spike:
+    name: "Temporal Velocity Spike"
+    description: "Rapid transfers within constrained time window"
+    time_window_hours: 2
+    min_transactions: 10
+    severity: high
+    question_templates:
+      - "Find velocity spikes from {entity}"
+      - "Identify rapid transfer bursts"

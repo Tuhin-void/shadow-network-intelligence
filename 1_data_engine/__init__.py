@@ -1,7 +1,8 @@
 """
 Shadow Network Intelligence - Data Engine Package
-Data generation and patterns
+Synthetic AML data generation engine
 """
-from .pattern_definition import PATTERN_CONFIGS, get_pattern_config, PatternConfig
 
-__all__ = ["PATTERN_CONFIGS", "get_pattern_config", "PatternConfig"]
+__version__ = "1.0.0"
+
+__all__ = ["__version__"]

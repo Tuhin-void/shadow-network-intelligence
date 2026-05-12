@@ -1,0 +1,84 @@
+noise_config:
+  semantic_trap:
+    enabled: true
+
+    company_names:
+      base_names:
+        - ShadowCorp
+        - GlobalTech
+        - Pacific Holdings
+        - Atlantic Ventures
+        - Sterling Group
+        - Phoenix Holdings
+        - Apex Solutions
+        - Horizon Enterprises
+
+      variant_suffixes:
+        - LLC
+        - Inc
+        - Holdings
+        - Group
+        - International
+        - Ventures
+        - Services
+        - Solutions
+        - Enterprises
+        - Partners
+
+      noise_ratio: 100
+      real_entity_ratio: 1
+
+    addresses:
+      base_streets:
+        - 123 Business Park
+        - 456 Corporate Plaza
+        - 789 Financial Center
+
+      noise_ratio: 10
+      collision_count: 3
+
+    descriptions:
+      base_templates:
+        - "Consulting services for international clients"
+        - "Investment and financial advisory"
+        - "Global trade and commerce solutions"
+        - "Strategic business consulting"
+
+      noise_ratio: 20
+
+  entity_resolution_collision:
+    enabled: true
+
+    person_aliases:
+      avg_aliases_per_entity: 2
+      alias_overlap_ratio: 0.3
+
+    similar_names:
+      similarity_threshold: 0.8
+      noise_count: 50
+
+  transaction_description_noise:
+    enabled: true
+
+    descriptions:
+      - "Payment for services"
+      - "Invoice payment"
+      - "Business expense"
+      - "Consulting fee"
+
+    noise_variations: 15
+
+vector_rag_failure_engineering:
+  goal: "Create semantic ambiguity that confuses vector retrieval"
+
+  techniques:
+    - name_collision
+    - address_duplication
+    - description_similarity
+    - alias_proliferation
+
+  expected_failures:
+    - "Retrieve wrong entity with similar name"
+    - "Mix fraud ring members with noise entities"
+    - "Fail to disambiguate similar addresses"
+    - "Confuse aliases with separate entities"

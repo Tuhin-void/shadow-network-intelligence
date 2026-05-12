@@ -1,0 +1,69 @@
+regions:
+  domestic:
+    countries:
+      - US
+      - CA
+    distribution: 0.70
+    risk_weight: 0.3
+
+  offshore:
+    countries:
+      - KY
+      - VG
+      - BS
+      - PA
+      - CY
+      - LU
+      - CH
+      - LI
+    distribution: 0.15
+    risk_weight: 0.8
+
+  international:
+    countries:
+      - GB
+      - DE
+      - FR
+      - IT
+      - ES
+      - JP
+      - AU
+      - NL
+      - SE
+      - NO
+      - DK
+      - FI
+    distribution: 0.15
+    risk_weight: 0.5
+
+cities:
+  US:
+    - New York
+    - Los Angeles
+    - Chicago
+    - Houston
+    - Phoenix
+    - Miami
+    - Seattle
+    - Denver
+    - Atlanta
+    - Boston
+    - San Francisco
+    - Wilmington
+    - Carson City
+  KY:
+    - George Town
+  VG:
+    - Road Town
+  PA:
+    - Panama City
+  CH:
+    - Zurich
+    - Geneva
+  DE:
+    - Frankfurt
+    - Berlin
+  GB:
+    - London
+    - Manchester
+    - Birmingham

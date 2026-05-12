@@ -1,0 +1,49 @@
+industries:
+  high_risk:
+    - Financial Services
+    - Import/Export
+    - Consulting
+    - Holding Companies
+    - Money Services
+    weight: 0.8
+
+  medium_risk:
+    - Real Estate
+    - Technology
+    - Construction
+    - Hospitality
+    - Transportation
+    weight: 0.5
+
+  low_risk:
+    - Healthcare
+    - Retail
+    - Manufacturing
+    - Education
+    - Agriculture
+    weight: 0.2
+
+company_types:
+  domestic:
+    suffix_weights:
+      Corp: 0.25
+      Inc: 0.30
+      LLC: 0.25
+      Holdings: 0.10
+      Group: 0.05
+      Partners: 0.05
+
+  offshore:
+    suffix_weights:
+      Corp: 0.20
+      Holdings: 0.30
+      Group: 0.20
+      Services: 0.15
+      Investments: 0.15
+
+shell_indicators:
+  min_employees: 3
+  max_employees: 5
+  no_public_office: true
+  registration_agent: true
+  nominee_directors: true

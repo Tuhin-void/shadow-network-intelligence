@@ -1,0 +1,66 @@
+profiles:
+  small:
+    description: "Local debugging - 1K entities, 10K-25K edges"
+    entity_counts:
+      persons: 300
+      companies: 200
+      accounts: 400
+      addresses: 100
+    edge_target: 15000
+    fraud_ring_count: 3
+    seed: 42
+
+  medium:
+    description: "Local benchmark testing - 10K entities, 100K-500K edges"
+    entity_counts:
+      persons: 3000
+      companies: 2000
+      accounts: 4000
+      addresses: 1000
+    edge_target: 250000
+    fraud_ring_count: 8
+    seed: 42
+
+  large:
+    description: "Production-scale simulation - 100K+ entities, 1M+ edges"
+    entity_counts:
+      persons: 30000
+      companies: 20000
+      accounts: 40000
+      addresses: 10000
+    edge_target: 1500000
+    fraud_ring_count: 30
+    seed: 42
+
+  hackathon_default:
+    description: "PRIMARY - 15K-30K entities, 250K-750K edges for GraphRAG benchmark"
+    entity_counts:
+      persons: 6000
+      companies: 5000
+      accounts: 10000
+      addresses: 4000
+    edge_target: 500000
+    fraud_ring_count: 15
+    seed: 42
+
+fraud_distribution:
+  circular_ownership: 2
+  funnel_account: 3
+  smurfing_ring: 2
+  layering_chain: 2
+  shared_address: 2
+  offshore_routing: 1
+  central_hub: 1
+  dormant_burst: 1
+  beneficial_ownership: 1
+  semantic_trap: 1
+
+edge_weights:
+  owns: 1.0
+  transferred_to: 0.8
+  located_at: 0.3
+  has_account: 0.5
+  controls: 0.9
+  benefits_from: 0.7
+  director_of: 0.6
+  beneficial_owner_of: 0.9
