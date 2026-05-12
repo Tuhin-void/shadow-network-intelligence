@@ -1,0 +1,4 @@
+account_id,bank_name,currency,balance,risk_score,opened_date
+A-000001,Emirates Gulf Bank,USD,882145.33,93,2021-01-11
+A-000002,Oceanic Trust Bank,EUR,192245.55,88,2020-08-02
+A-000003,Harbor Financial Bank,SGD,2288110.45,91,2019-12-21

@@ -1,0 +1,12 @@
+{
+  "event_type": "SUSPICIOUS_TRANSFER",
+  "timestamp": "2025-05-01T09:27:03Z",
+  "source_account": "A-000003",
+  "destination_account": "A-000001",
+  "amount": 149000,
+  "currency": "USD",
+  "risk_score": 97,
+  "fraud_ring": "FR-001",
+  "alert_level": "CRITICAL",
+  "reason": "Rapid circular transfer detected across linked offshore accounts"
+}

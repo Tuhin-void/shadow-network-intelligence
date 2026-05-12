@@ -1,0 +1,4 @@
+person_id,name,dob,nationality,risk_score,pep_flag,sanctions_flag,email,phone
+P-000001,Daniel Mercer,1982-04-11,Singapore,72,False,False,daniel.mercer@globalconsult.sg,+65-8821-1132
+P-000002,Elena Volkov,1978-11-02,Cyprus,88,False,True,e.volkov@eastbridge.eu,+357-9911-7722
+P-000003,Marcus Hale,1990-07-29,UK,31,False,False,mhale@silverline.co.uk,+44-7421-441212

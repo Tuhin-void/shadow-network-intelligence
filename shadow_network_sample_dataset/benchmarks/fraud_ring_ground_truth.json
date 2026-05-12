@@ -1,0 +1,15 @@
+{
+  "fraud_ring": "FR-001",
+  "ring_type": "Circular Ownership + Layered Laundering",
+  "entities": [
+    "P-000001",
+    "C-000001",
+    "C-000002",
+    "C-000003",
+    "A-000001",
+    "A-000002",
+    "A-000003"
+  ],
+  "shared_address": "ADDR-000002",
+  "risk_level": "HIGH"
+}

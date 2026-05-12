@@ -40,6 +40,9 @@ ENV/
 Thumbs.db
 
 # Project specific
+!shadow_network_sample_dataset/**/*.csv
+!shadow_network_sample_dataset/**/*.json
+!shadow_network_sample_dataset/**/*.md
 *.csv
 *.json
 *.txt

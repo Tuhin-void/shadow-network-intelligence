@@ -1,0 +1,3 @@
+address_id,full_address,country,address_type,risk_level
+ADDR-000001,17 Palm Meridian Tower Dubai Marina UAE,UAE,Commercial,High
+ADDR-000002,PO Box 778 George Town Cayman Islands,Cayman Islands,Mailbox,High

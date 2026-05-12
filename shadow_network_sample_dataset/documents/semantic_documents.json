@@ -1,0 +1,14 @@
+[
+  {
+    "document_id": "DOC-000001",
+    "entity_id": "C-000001",
+    "title": "ShadowCorp Holdings Vendor Profile",
+    "content": "ShadowCorp Holdings is an international financial services organization specializing in offshore liquidity management and cross-border asset coordination."
+  },
+  {
+    "document_id": "DOC-000002",
+    "entity_id": "C-000002",
+    "title": "ShadowCorp International Compliance Summary",
+    "content": "ShadowCorp International operates as a logistics and trade routing consultancy with active settlement channels across multiple international jurisdictions."
+  }
+]

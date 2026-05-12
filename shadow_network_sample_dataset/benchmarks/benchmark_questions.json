@@ -1,0 +1,12 @@
+[
+  {
+    "question": "Find all companies sharing an address with ShadowCorp Holdings that transferred funds offshore within 24 hours.",
+    "expected_pipeline_winner": "GraphRAG",
+    "difficulty": "HIGH"
+  },
+  {
+    "question": "Identify circular ownership structures involving entities connected to Account A-000001.",
+    "expected_pipeline_winner": "GraphRAG",
+    "difficulty": "HIGH"
+  }
+]

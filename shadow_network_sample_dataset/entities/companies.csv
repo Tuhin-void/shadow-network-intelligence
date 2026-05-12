@@ -1,0 +1,4 @@
+company_id,name,country,industry,risk_score,registration_date
+C-000001,ShadowCorp Holdings,BVI,Financial Services,94,2018-03-12
+C-000002,ShadowCorp International,Cayman Islands,Logistics,89,2019-08-21
+C-000003,ShadowCorp Ventures,Singapore,Consulting,81,2020-11-09

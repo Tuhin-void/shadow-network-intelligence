@@ -1,0 +1,4 @@
+transaction_id,from_account,to_account,amount,currency,timestamp,transaction_type,risk_score
+TX-000001,A-000001,A-000002,150000,USD,2025-05-01T09:14:22Z,wire_transfer,91
+TX-000002,A-000002,A-000003,149500,USD,2025-05-01T09:19:11Z,offshore_transfer,94
+TX-000003,A-000003,A-000001,149000,USD,2025-05-01T09:27:03Z,layered_transfer,97
