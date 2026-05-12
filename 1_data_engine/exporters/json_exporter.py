@@ -3,6 +3,7 @@ JSON Exporter - JSON graph export
 """
 import json
 from pathlib import Path
+from typing import Dict
 
 from ..schemas.entity_registry import EntityRegistry
 from ..utils.logger import get_logger

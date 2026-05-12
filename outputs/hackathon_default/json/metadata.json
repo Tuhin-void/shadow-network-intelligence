@@ -1,0 +1,12 @@
+{
+  "entity_counts": {
+    "persons": 6000,
+    "companies": 5000,
+    "accounts": 10000,
+    "addresses": 4000,
+    "transactions": 149986,
+    "edges": 160191,
+    "fraud_rings": 33
+  },
+  "total_entities": 25000
+}

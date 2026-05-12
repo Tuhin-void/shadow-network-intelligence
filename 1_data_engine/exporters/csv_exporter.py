@@ -3,6 +3,7 @@ CSV Exporter - Multi-file CSV export
 """
 import csv
 from pathlib import Path
+from typing import Dict
 
 from ..schemas.entity_registry import EntityRegistry
 from ..utils.logger import get_logger
