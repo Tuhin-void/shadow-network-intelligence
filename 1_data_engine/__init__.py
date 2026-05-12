@@ -1,8 +1,8 @@
 """
-Shadow Network Intelligence - Data Engine Package
-Synthetic AML data generation engine
+Shadow Network Intelligence - Data Engine
+Production-grade synthetic intelligence generation module.
+Canonical upstream source for all downstream systems.
 """
-
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 __all__ = ["__version__"]
