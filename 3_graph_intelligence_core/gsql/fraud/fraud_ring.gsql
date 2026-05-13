@@ -1,16 +1,32 @@
 USE GRAPH ShadowGraph
 DROP QUERY tg_fraud_ring IF EXISTS
 CREATE QUERY tg_fraud_ring(STRING entity_id, FLOAT threshold DEFAULT 0.7) FOR GRAPH ShadowGraph {
+  -- Seed: find the starting entity
   seed = {Person.*, Company.*, Account.*} WHERE vertex.primary_id == entity_id;
   PRINT seed;
 
-  accounts = SELECT ac FROM seed-(:LINKED_TO_ACCOUNT|:OWNS)-Account:ac
+  -- Find accounts via HAS_ACCOUNT or OWNS (live schema — no LINKED_TO_ACCOUNT)
+  accounts = SELECT ac FROM seed -(:HAS_ACCOUNT|:OWNS)-> Account:ac
     POST-ACCUM ac.account_number, ac.risk_score, ac.is_offshore;
   PRINT accounts;
 
-  transactions = SELECT t FROM accounts-(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-Transaction:t
+  -- Find suspicious transactions
+  transactions = SELECT t FROM accounts -(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-> Transaction:t
     WHERE t.risk_score >= threshold OR t.is_suspicious == TRUE
     POST-ACCUM t.tx_hash, t.amount, t.timestamp;
   PRINT transactions;
+
+  -- Find fraud rings this entity belongs to (explicit per-type edges)
+  person_rings  = SELECT r FROM seed:p -(:PERSON_MEMBER_OF_RING)->  FraudRing:r WHERE p.type == "Person";
+  company_rings = SELECT r FROM seed:c -(:COMPANY_MEMBER_OF_RING)-> FraudRing:r WHERE c.type == "Company";
+  account_rings = SELECT r FROM accounts  -(:ACCOUNT_MEMBER_OF_RING)-> FraudRing:r;
+  PRINT person_rings, company_rings, account_rings;
+
+  -- Expand ring co-members (persons and companies in the same rings)
+  all_rings = person_rings UNION company_rings UNION account_rings;
+  co_persons  = SELECT p FROM all_rings -(<:PERSON_MEMBER_OF_RING)-  Person:p;
+  co_companies= SELECT c FROM all_rings -(<:COMPANY_MEMBER_OF_RING)- Company:c;
+  co_accounts = SELECT a FROM all_rings -(<:ACCOUNT_MEMBER_OF_RING)- Account:a;
+  PRINT co_persons, co_companies, co_accounts;
 }
 INSTALL QUERY tg_fraud_ring

@@ -1,33 +1,29 @@
 USE GRAPH ShadowGraph
 DROP QUERY tg_shortest_path IF EXISTS
-CREATE QUERY tg_shortest_path(STRING from_id, STRING to_id, INT max_hops DEFAULT 5) FOR GRAPH ShadowGraph {
-  OrAccum @visited = FALSE;
-  ListAccum<STRING> @path;
-  MinAccum<INT> @dist;
+CREATE QUERY tg_shortest_path(VERTEX src, VERTEX tgt, INT max_hops = 5) FOR GRAPH ShadowGraph {
+    // BFS shortest path between two arbitrary vertices over fraud-relevant edges.
+    // Returns reached vertices ordered by distance.
+    OrAccum @visited = FALSE;
+    MinAccum<INT> @dist = 99;
 
-  start = {Person.*, Company.*, Account.*, Device.*}
-    WHERE vertex.primary_id == from_id;
+    Start = {src};
+    Start = SELECT s FROM Start:s POST-ACCUM s.@visited = TRUE, s.@dist = 0;
 
-  target = {Person.*, Company.*, Account.*, Device.*}
-    WHERE vertex.primary_id == to_id;
-
-  IF start.size() > 0 AND target.size() > 0 THEN
-    start.attr("distance", 0);
-    start.@visited = TRUE;
-
-    WHILE start.size() > 0 LIMIT 100 DO
-      start = SELECT s FROM start-(:e)-:*:s
-        WHERE s.@visited == FALSE AND s.@dist < max_hops
-        POST-ACCUM
-          s.@visited = TRUE,
-          s.@dist = start.@dist + 1;
-      IF target.size() > 0 THEN
-        BREAK;
-      END;
+    Frontier = Start;
+    Reached = Start;
+    INT hop = 0;
+    WHILE Frontier.size() > 0 AND hop < max_hops DO
+        Frontier = SELECT t
+            FROM Frontier:s - (OWNS|HAS_ACCOUNT|TRANSFERRED_TO|LOCATED_AT|BENEFITS_FROM|SHARES_DEVICE_WITH|SHARES_ADDRESS_WITH|ASSOCIATED_WITH|SENT_TRANSACTION|RECEIVED_TRANSACTION) - :t
+            WHERE t.@visited == FALSE
+            POST-ACCUM
+                t.@visited = TRUE,
+                t.@dist = s.@dist + 1;
+        Reached = Reached UNION Frontier;
+        hop = hop + 1;
     END;
-  END;
 
-  result = target;
-  PRINT result;
+    Result = SELECT t FROM Reached:t WHERE t == tgt;
+    PRINT Result[Result.@dist];
 }
 INSTALL QUERY tg_shortest_path

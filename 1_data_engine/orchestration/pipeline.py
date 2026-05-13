@@ -3,6 +3,7 @@ Pipeline Orchestrator - Main generation pipeline
 """
 import random
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -88,6 +89,7 @@ class PipelineOrchestrator:
         self._run_stage("Generate Accounts", self._generate_accounts)
         self._run_stage("Generate Devices", self._generate_devices)
         self._run_stage("Generate Base Edges", self._generate_base_edges)
+        self._run_stage("Generate Shared Infra", self._generate_shared_infra)
         self._run_stage("Generate Transactions", self._generate_transactions)
         self._run_stage("Inject Fraud Patterns", self._inject_fraud_patterns)
         self._run_stage("Generate Documents", self._generate_documents)
@@ -295,21 +297,30 @@ class PipelineOrchestrator:
         return count
 
     def _generate_devices(self) -> int:
-        """Generate device entities"""
+        """
+        Generate device entities. ~12% of devices are deliberately shared
+        between 2-3 Persons (an infrastructure-reuse fraud signal that powers
+        SHARES_DEVICE_WITH derivation later).
+        """
         count = self.config.device_count
         person_ids = list(self.registry.persons.keys())
+        # device_id → list of (Person) user_ids, used later to derive SHARES_DEVICE_WITH
+        self._device_users: dict[str, list[str]] = {}
+
+        SHARED_DEVICE_PROB = 0.12
+        SHARED_DEVICE_MAX_USERS = 3
 
         for i in range(count):
             self._counters["device"] += 1
             dev_num = self._counters["device"]
 
-            owner_id = self.rng.choice(person_ids) if person_ids else None
+            primary_owner = self.rng.choice(person_ids) if person_ids else None
 
             device = DeviceEntity(
                 id=f"D-{dev_num:06d}",
                 device_type=self.rng.choice(["desktop", "mobile", "tablet"]),
                 ip_address=f"{self.rng.randint(1, 255)}.{self.rng.randint(0, 255)}.{self.rng.randint(0, 255)}.{self.rng.randint(1, 254)}",
-                owner_id=owner_id,
+                owner_id=primary_owner,
                 owner_type="Person",
                 location_country=self.rng.choice(["US", "GB", "CA", "DE", "FR", "RU", "CN"]),
                 first_seen=datetime(2020 + self.rng.randint(0, 4), self.rng.randint(1, 12), self.rng.randint(1, 28)).date(),
@@ -319,33 +330,194 @@ class PipelineOrchestrator:
             )
             self.registry.add_device(device)
 
-            if owner_id:
-                edge = EdgeFactory.uses_device(owner_id, device.id)
+            users: list[str] = []
+            if primary_owner:
+                users.append(primary_owner)
+                edge = EdgeFactory.uses_device(primary_owner, device.id)
                 self.registry.add_edge(edge)
+
+                # Suspicious signal: occasionally a device is shared between
+                # 2-3 distinct Persons (mules, co-conspirators).
+                if person_ids and self.rng.random() < SHARED_DEVICE_PROB:
+                    n_extra = self.rng.randint(1, SHARED_DEVICE_MAX_USERS - 1)
+                    for _ in range(n_extra):
+                        extra = self.rng.choice(person_ids)
+                        if extra not in users:
+                            users.append(extra)
+                            extra_edge = EdgeFactory.uses_device(extra, device.id)
+                            self.registry.add_edge(extra_edge)
+
+            if users:
+                self._device_users[device.id] = users
 
         return count
 
     def _generate_base_edges(self) -> int:
-        """Generate base graph edges"""
+        """
+        Generate dense topology so GraphRAG has real structural signals to traverse.
+
+        Targets (per Shadow Network Intelligence demo philosophy):
+          - ≥1 OWNS edge per Company        (ownership chains)
+          - 1  LOCATED_AT per Person+Company (address topology)
+          - ~15% of high-risk Persons get BENEFITS_FROM a Company
+          - Persons co-located at the same Address get a pairwise ASSOCIATED_WITH
+            link (collusion signal, capped to keep density realistic)
+        """
         edge_count = 0
 
-        person_ids = list(self.registry.persons.keys())
-        company_ids = list(self.registry.companies.keys())
-        address_ids = list(self.registry.addresses.keys())
+        person_ids   = list(self.registry.persons.keys())
+        company_ids  = list(self.registry.companies.keys())
+        address_ids  = list(self.registry.addresses.keys())
 
-        for person_id in person_ids[:min(len(person_ids), self.config.person_count // 10)]:
-            if company_ids and self.rng.random() < 0.2:
+        if not person_ids or not company_ids or not address_ids:
+            return 0
+
+        # ── 1. OWNS — every Company gets an owner ────────────────────────────
+        # 90% Person→Company, 10% Company→Company (subsidiary structure).
+        for company_id in company_ids:
+            if self.rng.random() < 0.9:
+                owner = self.rng.choice(person_ids)
+                edge = EdgeFactory.owns(owner, company_id)
+            else:
+                # Subsidiary of another company (skip self-loops)
+                parent = self.rng.choice([c for c in company_ids if c != company_id])
+                edge = EdgeFactory.company_owns_company(parent, company_id)
+            self.registry.add_edge(edge)
+            edge_count += 1
+
+        # ── 2. LOCATED_AT — every Person and Company has an address ──────────
+        person_address_map: dict[str, str] = {}
+        for person_id in person_ids:
+            address_id = self.rng.choice(address_ids)
+            person_address_map[person_id] = address_id
+            edge = EdgeFactory.located_at(person_id, "Person", address_id)
+            self.registry.add_edge(edge)
+            edge_count += 1
+
+        company_address_map: dict[str, str] = {}
+        for company_id in company_ids:
+            address_id = self.rng.choice(address_ids)
+            company_address_map[company_id] = address_id
+            edge = EdgeFactory.located_at(company_id, "Company", address_id)
+            self.registry.add_edge(edge)
+            edge_count += 1
+
+        # Cache for the shared-infrastructure derivation stage.
+        self._person_address_map = person_address_map
+        self._company_address_map = company_address_map
+
+        # ── 3. BENEFITS_FROM — high-risk Persons benefit from a Company ──────
+        # Roughly 15% of Persons, biased toward those with elevated risk_score.
+        # Builds a PERSON → COMPANY BENEFITS_FROM edge — the canonical "hidden
+        # beneficial-owner" signal investigators look for.
+        from ..schemas.edge import EdgeBuilder, RelationshipType
+        for person_id, person in self.registry.persons.items():
+            base_p = 0.15
+            risk = getattr(person, "risk_score", 0.0) or 0.0
+            p = base_p + (0.25 if risk > 0.5 else 0.0)
+            if self.rng.random() < p:
                 company_id = self.rng.choice(company_ids)
-                edge = EdgeFactory.owns(person_id, company_id)
+                edge = EdgeBuilder.create(
+                    from_id=person_id, from_type="PERSON",
+                    to_id=company_id,  to_type="COMPANY",
+                    relationship=RelationshipType.BENEFITS_FROM,
+                )
                 self.registry.add_edge(edge)
                 edge_count += 1
 
-        for company_id in company_ids[:min(len(company_ids), self.config.company_count // 10)]:
-            if address_ids and self.rng.random() < 0.3:
-                address_id = self.rng.choice(address_ids)
-                edge = EdgeFactory.located_at(company_id, "Company", address_id)
-                self.registry.add_edge(edge)
-                edge_count += 1
+        # ── 4. ASSOCIATED_WITH — co-located Persons (collusion signal) ───────
+        # Group Persons by address; emit pairwise edges within each cohort, capped.
+        addr_to_persons: dict[str, list[str]] = {}
+        for pid, aid in person_address_map.items():
+            addr_to_persons.setdefault(aid, []).append(pid)
+
+        ASSOC_MAX_PER_ADDRESS = 4  # cap fan-out to keep density realistic
+        ASSOC_TOTAL_CAP = max(200, len(person_ids) // 30)
+        assoc_emitted = 0
+        for aid, cohort in addr_to_persons.items():
+            if len(cohort) < 2 or assoc_emitted >= ASSOC_TOTAL_CAP:
+                continue
+            # Take a deterministic sample of pairs
+            sample = cohort[:ASSOC_MAX_PER_ADDRESS]
+            for i in range(len(sample)):
+                for j in range(i + 1, len(sample)):
+                    if assoc_emitted >= ASSOC_TOTAL_CAP:
+                        break
+                    from ..schemas.edge import EdgeBuilder, RelationshipType
+                    edge = EdgeBuilder.create(
+                        from_id=sample[i], from_type="PERSON",
+                        to_id=sample[j], to_type="PERSON",
+                        relationship=RelationshipType.ASSOCIATED_WITH,
+                    )
+                    self.registry.add_edge(edge)
+                    edge_count += 1
+                    assoc_emitted += 1
+
+        return edge_count
+
+    def _generate_shared_infra(self) -> int:
+        """
+        Derive infrastructure-reuse fraud signals.
+
+        SHARES_DEVICE_WITH (Person-Person): for every device used by 2+ Persons,
+            emit pairwise edges between those users. This is a strong coordination
+            signal (mules, co-conspirators).
+        SHARES_ADDRESS_WITH (Person-Person): for every Address occupied by 2+ Persons,
+            emit pairwise edges. Suspicious shell-residency / collusion signal.
+
+        Density is capped per device / per address to keep the graph realistic.
+        """
+        from ..schemas.edge import EdgeBuilder, RelationshipType
+
+        SHARE_DEVICE_MAX_PAIRS  = 3   # cap pairs emitted per shared device
+        SHARE_ADDRESS_MAX_PAIRS = 5   # cap pairs emitted per shared address
+        SHARE_ADDRESS_MIN_COHORT = 2  # need at least 2 persons at same address
+
+        edge_count = 0
+
+        # ── SHARES_DEVICE_WITH ──────────────────────────────────────────────
+        device_users = getattr(self, "_device_users", {}) or {}
+        for device_id, users in device_users.items():
+            if len(users) < 2:
+                continue
+            uniq = list(dict.fromkeys(users))  # dedup preserving order
+            emitted = 0
+            for i in range(len(uniq)):
+                for j in range(i + 1, len(uniq)):
+                    if emitted >= SHARE_DEVICE_MAX_PAIRS:
+                        break
+                    edge = EdgeBuilder.create(
+                        from_id=uniq[i], from_type="PERSON",
+                        to_id=uniq[j],   to_type="PERSON",
+                        relationship=RelationshipType.SHARES_DEVICE_WITH,
+                    )
+                    self.registry.add_edge(edge)
+                    edge_count += 1
+                    emitted += 1
+
+        # ── SHARES_ADDRESS_WITH ─────────────────────────────────────────────
+        person_addr_map = getattr(self, "_person_address_map", {}) or {}
+        addr_to_persons: dict[str, list[str]] = {}
+        for pid, aid in person_addr_map.items():
+            addr_to_persons.setdefault(aid, []).append(pid)
+
+        for aid, cohort in addr_to_persons.items():
+            if len(cohort) < SHARE_ADDRESS_MIN_COHORT:
+                continue
+            sample = cohort[:SHARE_ADDRESS_MAX_PAIRS + 1]
+            emitted = 0
+            for i in range(len(sample)):
+                for j in range(i + 1, len(sample)):
+                    if emitted >= SHARE_ADDRESS_MAX_PAIRS:
+                        break
+                    edge = EdgeBuilder.create(
+                        from_id=sample[i], from_type="PERSON",
+                        to_id=sample[j],   to_type="PERSON",
+                        relationship=RelationshipType.SHARES_ADDRESS_WITH,
+                    )
+                    self.registry.add_edge(edge)
+                    edge_count += 1
+                    emitted += 1
 
         return edge_count
 
@@ -387,43 +559,137 @@ class PipelineOrchestrator:
         return count
 
     def _inject_fraud_patterns(self) -> int:
-        """Inject fraud pattern structures"""
+        """
+        Inject fraud pattern structures. For every pattern, also register a
+        FraudRing entity with `entities` and `key_entities` populated so the
+        CSV exporter can emit the typed ring-membership edges (the demo needs
+        these for ring-identification queries).
+        """
+        from ..schemas.fraud_ring import FraudRingSchema, FraudRingType as RingType, Severity
+        from ..entities.transaction import TransactionEntity, TransactionType, TransactionStatus
+
         edge_count = 0
+        ring_count = 0
         fraud_ring_id = 0
+        ring_tx_seq = 0  # sequence for Transaction entities created inside ring patterns
 
         account_ids = list(self.registry.accounts.keys())
         company_ids = list(self.registry.companies.keys())
+        person_ids  = list(self.registry.persons.keys())
+
+        def _new_ring_tx(from_acc: str, to_acc: str, amount: float, fr_id: str,
+                          suspicious: bool = True) -> str:
+            """Create a Transaction entity tied to a fraud ring; returns the TX id."""
+            nonlocal ring_tx_seq
+            ring_tx_seq += 1
+            tx_id = f"TX-FR{ring_tx_seq:06d}"
+            tx = TransactionEntity(
+                id=tx_id,
+                from_account=from_acc,
+                to_account=to_acc,
+                amount=amount,
+                currency="USD",
+                transaction_type=TransactionType.WIRE,
+                timestamp=datetime.now() - timedelta(days=self.rng.randint(0, 90),
+                                                     hours=self.rng.randint(0, 23)),
+                status=TransactionStatus.COMPLETED,
+                is_suspicious=suspicious,
+                risk_score=min(1.0, 0.7 + self.rng.uniform(0, 0.3)),
+            )
+            self.registry.add_transaction(tx)
+            return tx_id
 
         for i in range(self.config.fraud_ring_count):
             fraud_ring_id += 1
             fr_id = f"FR-{fraud_ring_id:03d}"
-            pattern_type = i % 12
+            # Rotate through the 3 implemented patterns so every iteration
+            # registers a ring (was % 12 which left 9/12 iterations as no-ops).
+            pattern_type = i % 3
+
+            # Collected ring membership data
+            ring_entities: list[str] = []
+            ring_key_entities: list[str] = []
+            ring_type: RingType = RingType.LAYERING_CHAIN
+            ring_severity: Severity = Severity.HIGH
+            ring_description = ""
 
             if pattern_type == 0:
+                # Layering chain — each hop produces both a TRANSFERRED_TO edge
+                # AND a Transaction entity, so we can wire TRANSACTION_MEMBER_OF_RING.
                 chain_length = self.rng.randint(5, 7)
                 chain = self.rng.sample(account_ids, chain_length)
+                chain_txs: list[str] = []
                 for j in range(len(chain) - 1):
-                    edge = EdgeFactory.transferred_to(chain[j], chain[j + 1], self.rng.randint(10000, 100000), fr_id)
+                    amt = self.rng.randint(10000, 100000)
+                    edge = EdgeFactory.transferred_to(chain[j], chain[j + 1], amt, fr_id)
                     self.registry.add_edge(edge)
                     edge_count += 1
+                    tx_id = _new_ring_tx(chain[j], chain[j + 1], amt, fr_id)
+                    chain_txs.append(tx_id)
+                ring_entities = list(chain) + chain_txs
+                ring_key_entities = chain[:2] + chain_txs[:1]
+                ring_type = RingType.LAYERING_CHAIN
+                ring_description = (f"Layering chain of {len(chain)} accounts moving funds "
+                                    f"through {len(chain_txs)} suspicious transactions")
 
             elif pattern_type == 1:
+                # Circular ownership — each company in the cycle has a Person
+                # owner who is also a ring member (the human controllers).
                 ring_size = self.rng.randint(3, 5)
                 companies = self.rng.sample(company_ids, ring_size)
+                ring_persons: list[str] = []
                 for j in range(ring_size):
                     edge = EdgeFactory.company_owns_company(companies[j], companies[(j + 1) % ring_size], fr_id)
                     self.registry.add_edge(edge)
                     edge_count += 1
+                    # Person who controls company j — registered as ring member
+                    if person_ids:
+                        person = self.rng.choice(person_ids)
+                        if person not in ring_persons:
+                            ring_persons.append(person)
+                            person_owns_edge = EdgeFactory.owns(person, companies[j], fr_id)
+                            self.registry.add_edge(person_owns_edge)
+                            edge_count += 1
+                ring_entities = list(companies) + ring_persons
+                ring_key_entities = (ring_persons[:1] or companies[:1])
+                ring_type = RingType.CIRCULAR_OWNERSHIP
+                ring_severity = Severity.CRITICAL
+                ring_description = (f"Circular ownership ring across {len(companies)} shell companies "
+                                    f"controlled by {len(ring_persons)} persons")
 
             elif pattern_type == 2:
+                # Funnel account — each source→funnel transfer becomes a
+                # Transaction tied to the ring.
                 funnel_sources = self.rng.randint(5, 12)
                 sources = self.rng.sample(account_ids, funnel_sources)
                 funnel = self.rng.choice([a for a in account_ids if a not in sources])
+                funnel_txs: list[str] = []
                 for source in sources:
-                    edge = EdgeFactory.transferred_to(source, funnel, self.rng.randint(10000, 50000), fr_id)
+                    amt = self.rng.randint(10000, 50000)
+                    edge = EdgeFactory.transferred_to(source, funnel, amt, fr_id)
                     self.registry.add_edge(edge)
                     edge_count += 1
+                    funnel_txs.append(_new_ring_tx(source, funnel, amt, fr_id))
+                ring_entities = [funnel] + list(sources) + funnel_txs
+                ring_key_entities = [funnel] + funnel_txs[:1]
+                ring_type = RingType.FUNNEL_ACCOUNT
+                ring_description = (f"Funnel pattern: {len(sources)} accounts feeding into "
+                                    f"{funnel} via {len(funnel_txs)} suspicious transactions")
 
+            if ring_entities:
+                ring = FraudRingSchema(
+                    id=fr_id,
+                    name=f"{ring_type.value} ring {fr_id}",
+                    ring_type=ring_type,
+                    severity=ring_severity,
+                    entities=ring_entities,
+                    key_entities=ring_key_entities,
+                    description=ring_description,
+                )
+                self.registry.add_fraud_ring(ring)
+                ring_count += 1
+
+        logger.info(f"  fraud rings registered: {ring_count}")
         return edge_count
 
     def _generate_documents(self) -> int:
@@ -444,5 +710,27 @@ class PipelineOrchestrator:
         return 0
 
     def _export(self) -> int:
-        """Export data to all formats"""
-        return 0
+        """Export the generated registry to CSV (and JSON if available)."""
+        output_dir = getattr(self.config, "output_dir", None) or f"./outputs/{self.config.profile.value}"
+        csv_dir = Path(output_dir) / "csv"
+        csv_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            from ..exporters.csv_exporter import CSVExporter
+            csv_exporter = CSVExporter()
+            csv_files = csv_exporter.export(self.registry, str(csv_dir))
+            logger.info(f"  CSV export wrote {len(csv_files)} files to {csv_dir}")
+        except Exception as e:
+            logger.error(f"  CSV export failed: {e}")
+            return 0
+
+        # Optional JSON export — best-effort, don't fail the run.
+        try:
+            from ..exporters.json_exporter import JSONExporter
+            json_dir = Path(output_dir) / "json"
+            json_dir.mkdir(parents=True, exist_ok=True)
+            JSONExporter().export(self.registry, str(json_dir))
+        except Exception:
+            pass
+
+        return len(csv_files)

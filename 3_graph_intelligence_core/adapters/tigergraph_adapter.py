@@ -18,14 +18,16 @@ class GraphRAGAdapter:
     This adapter wraps GraphRAGEngine to match that interface.
     """
 
-    def __init__(self, graph_client, config=None):
+    def __init__(self, graph_client, config=None, embedder=None):
         from graph_rag.graphrag_engine import GraphRAGEngine
 
         if config is None:
             from configs.config import get_config
             config = get_config()
 
-        self.engine = GraphRAGEngine(graph_client, config, compression="rule_based")
+        self.engine = GraphRAGEngine(
+            graph_client, config, compression="rule_based", embedder=embedder,
+        )
 
     def search(self, query: str, top_k: int = 10, depth: int = 2) -> dict:
         """
@@ -80,9 +82,9 @@ class GraphRAGAdapter:
         }
 
 
-def create_adapter(graph_client, config=None) -> GraphRAGAdapter:
+def create_adapter(graph_client, config=None, embedder=None) -> GraphRAGAdapter:
     """Factory function for GraphRAGAdapter."""
-    return GraphRAGAdapter(graph_client, config)
+    return GraphRAGAdapter(graph_client, config, embedder=embedder)
 
 
 def create_pipeline(

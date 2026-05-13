@@ -6,6 +6,7 @@ Key features:
 - Automatic offline fallback when TigerGraph is unreachable
 - All CRUD operations via pyTigerGraph
 - GSQL query installation and execution
+- Per-process TTL cache for get_neighbors / get_vertex (read-only hot path)
 
 Auth: Uses TIGERGRAPH_GSQL_SECRET with pyTigerGraph's built-in cloud auth.
 """
@@ -20,12 +21,6 @@ try:
     PYTIGERGRAPH_AVAILABLE = True
 except ImportError:
     PYTIGERGRAPH_AVAILABLE = False
-
-try:
-    import requests
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
 
 
 class OfflineFallback:
@@ -133,10 +128,19 @@ class GraphClient:
         self.tg = config.tigergraph
         self.dataset = dataset
         self._is_cloud = self.tg.deployment == "cloud"
-        
+
         self._tg_conn = None
         self._offline_fallback = OfflineFallback(dataset)
         self._offline_mode = False
+
+        # Read-only TTL cache for hot-path lookups (get_neighbors / get_vertex).
+        # Significantly reduces latency for topology-rerank workloads that
+        # walk the same vertices repeatedly in a single benchmark run.
+        self._neighbor_cache: dict[tuple, tuple[float, dict]] = {}
+        self._vertex_cache: dict[tuple, tuple[float, Optional[dict]]] = {}
+        self._cache_ttl_s = 60.0
+        self._cache_hits = 0
+        self._cache_misses = 0
 
         # Initialize pyTigerGraph connection or fall back to offline
         if PYTIGERGRAPH_AVAILABLE:
@@ -158,14 +162,20 @@ class GraphClient:
                     tgCloud=True,
                     sslPort=self.tg.restpp_port,
                 )
-                
+
+                # getToken() sets authHeader correctly but doesn't call _refresh_auth_headers(),
+                # so _cached_auth (used by every _prep_req call) keeps the old Basic auth header.
+                # Calling _refresh_auth_headers() after getToken() fixes this.
+                self._tg_conn.getToken(self.tg.gsql_secret)
+                self._tg_conn._refresh_auth_headers()
+
                 # Verify connection - try echo endpoint first
                 try:
                     echo_result = self._tg_conn.echo()
                     logger.info(f"TigerGraph Cloud echo: {echo_result}")
                 except Exception as echo_err:
                     logger.warning(f"Echo test failed: {echo_err}")
-                
+
                 # Try getting vertex types as verification
                 vertex_types = self._tg_conn.getVertexTypes()
                 logger.info(f"TigerGraph Cloud connected! Vertex types: {len(vertex_types)}")
@@ -194,74 +204,15 @@ class GraphClient:
             self._enable_offline_mode()
 
     def _test_connectivity(self) -> bool:
-        """Test if TigerGraph is reachable with current auth."""
+        """Test if TigerGraph is reachable via pyTigerGraph echo."""
+        if not self._tg_conn:
+            return False
         try:
-            resp = self._session.get(f"{self._restpp_base}/echo", timeout=10)
-            if resp.status_code == 200:
-                logger.info("TigerGraph connectivity OK (echo test)")
-                return True
-            resp = self._session.get(
-                f"{self._restpp_base}/graph/{self.tg.graph}/vertices/Person?limit=1",
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                logger.info("TigerGraph connectivity OK (vertex test)")
-                return True
-            elif resp.status_code == 403:
-                logger.warning("TigerGraph returned 403 - auth issue")
-                return False
-            else:
-                logger.warning(f"TigerGraph returned {resp.status_code}")
-                return False
+            self._tg_conn.echo()
+            return True
         except Exception as e:
             logger.warning(f"TigerGraph connectivity test failed: {e}")
             return False
-
-    def _test_cloud_connectivity(self) -> bool:
-        """Test TigerGraph Cloud RESTPP with secret auth."""
-        auth_params = self._build_auth_params()
-        if not auth_params:
-            return False
-        
-        try:
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/Person?limit=1"
-            url += "&" + "&".join(f"{k}={v}" for k, v in auth_params.items())
-            
-            resp = self._session.get(url, timeout=15)
-            if resp.status_code == 200:
-                logger.info("TigerGraph Cloud RESTPP accessible")
-                return True
-            elif resp.status_code == 403:
-                logger.warning("TigerGraph Cloud returned 403 - secret may be invalid")
-                return False
-            else:
-                logger.warning(f"TigerGraph Cloud returned {resp.status_code}")
-                return False
-        except Exception as e:
-            logger.warning(f"TigerGraph Cloud connectivity test failed: {e}")
-            return False
-
-    def _build_auth_params(self) -> dict:
-        """Build auth parameters for RESTPP requests."""
-        if self._is_cloud and self.tg.secret:
-            return {"secret": self.tg.secret}
-        return {}
-
-    def _build_auth_headers(self) -> dict:
-        """Build auth headers for RESTPP requests."""
-        headers = {}
-        if self._is_cloud and self.tg.secret:
-            # Some TG Cloud endpoints accept secret as header
-            pass
-        return headers
-
-    def _is_token_required_error(self, resp) -> bool:
-        """Check if response indicates token auth required."""
-        if resp.status_code == 403:
-            data = resp.json()
-            code = data.get("code", "")
-            return code == "REST-10016" or "token" in data.get("message", "").lower()
-        return False
 
     def _enable_offline_mode(self) -> None:
         """Enable offline fallback mode."""
@@ -314,40 +265,6 @@ class GraphClient:
 
         return result
 
-        start = time.time()
-        auth_params = self._build_auth_params()
-        
-        try:
-            # Test graph endpoint with secret auth
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/Person?limit=1"
-            if auth_params:
-                url += "&" + "&".join(f"{k}={v}" for k, v in auth_params.items())
-            
-            resp = self._session.get(url, timeout=15)
-            result["latency_ms"] = (time.time() - start) * 1000
-
-            if resp.status_code == 200:
-                result["restpp"] = True
-                result["graph"] = True
-                result["auth"] = True
-                data = resp.json()
-                result["api_version"] = data.get("version", {}).get("api", "v2")
-                result["healthy"] = True
-                result["vertex_counts"] = self.get_vertex_counts()
-            elif resp.status_code == 403:
-                result["auth"] = False
-                result["details"] = {"error": "403 Forbidden - check secret"}
-                self._enable_offline_mode()
-                result["offline_mode"] = True
-                result["healthy"] = True
-            else:
-                result["details"] = {"status": resp.status_code, "body": resp.text[:200]}
-        except Exception as e:
-            result["details"] = {"exception": str(e)}
-            result["latency_ms"] = (time.time() - start) * 1000
-
-        return result
-
     def get_vertex_counts(self) -> dict[str, Any]:
         """Get vertex counts per type."""
         if self._offline_mode:
@@ -359,36 +276,45 @@ class GraphClient:
             return counts
 
         counts = {}
-        auth_params = self._build_auth_params()
-        auth_str = "&" + "&".join(f"{k}={v}" for k, v in auth_params.items()) if auth_params else ""
-        
         for vtype in self.KNOWN_VERTEX_TYPES:
             try:
-                url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vtype}?limit=1{auth_str}"
-                resp = self._session.get(url, timeout=10)
-                if resp.status_code == 200:
-                    count = resp.headers.get("X-Total-List-Count", "0")
-                    try:
-                        counts[vtype] = int(count)
-                    except ValueError:
-                        counts[vtype] = count
-                else:
-                    counts[vtype] = f"error {resp.status_code}"
+                counts[vtype] = self._tg_conn.getVertexCount(vtype)
             except Exception as e:
                 counts[vtype] = str(e)
         return counts
 
     def get_vertex(self, vertex_type: str, vertex_id: str) -> Optional[dict]:
-        """Get single vertex by type and ID using pyTigerGraph."""
+        """Get single vertex by type and ID using pyTigerGraph.
+
+        Returns None for wrong-type / not-found errors (these are normal probes
+        during entity-type disambiguation and must NOT trip offline fallback).
+        Falls back to offline mode only on genuine connectivity failures.
+        TTL-cached for the hot path.
+        """
         if self._offline_mode:
             data = self._offline_fallback.get_vertex(vertex_id)
             return {"v_id": vertex_id, "type": vertex_type, "attributes": data or {}}
 
+        cache_key = (vertex_type, vertex_id)
+        cached = self._vertex_cache.get(cache_key)
+        now = time.time()
+        if cached and (now - cached[0]) < self._cache_ttl_s:
+            self._cache_hits += 1
+            return cached[1]
+        self._cache_misses += 1
+
         try:
             result = self._tg_conn.getVerticesById(vertex_type, [vertex_id])
-            return result[0] if result else None
+            v = result[0] if result else None
+            self._vertex_cache[cache_key] = (now, v)
+            return v
         except Exception as e:
-            logger.error(f"get_vertex({vertex_type}/{vertex_id}) failed: {e}")
+            msg = str(e)
+            if "is not a valid vertex id" in msg or "601" in msg or "404" in msg:
+                logger.debug(f"get_vertex({vertex_type}/{vertex_id}): {msg}")
+                self._vertex_cache[cache_key] = (now, None)
+                return None
+            logger.warning(f"get_vertex({vertex_type}/{vertex_id}) failed: {e}")
             self._enable_offline_mode()
             return self.get_vertex(vertex_type, vertex_id)
 
@@ -414,22 +340,76 @@ class GraphClient:
             self._enable_offline_mode()
             return self.get_vertices(vertex_type, limit, where)
 
+    # ID prefix → canonical vertex type (used to infer vtype for getEdges).
+    _ID_PREFIX_TO_VTYPE = {
+        "P":    "Person",
+        "C":    "Company",
+        "A":    "Account",
+        "ADDR": "Address",
+        "D":    "Device",
+        "TX":   "Transaction",
+        "T":    "Transaction",
+        "FR":   "FraudRing",
+    }
+
+    def _infer_vertex_type(self, entity_id: str) -> str:
+        """Infer vertex type from ID prefix (P-001 → Person, etc.)."""
+        if "-" not in entity_id:
+            return ""
+        prefix = entity_id.split("-", 1)[0]
+        return self._ID_PREFIX_TO_VTYPE.get(prefix, "")
+
     def get_neighbors(self, entity_id: str, vertex_type: str = "", edge_type: str = "", limit: int = 50, depth: int = 1) -> dict:
-        """Get neighbors of an entity using pyTigerGraph."""
+        """
+        Get neighbors of an entity. Uses pyTigerGraph's getEdges + a TTL cache
+        to make the topology-rerank hot path fast.
+        Returns {"results": [{"neighbors": [{v_id, type, edge_type}, ...]}]}.
+        """
         if self._offline_mode:
             neighbors = self._offline_fallback.get_neighbors(entity_id, limit)
             return {"results": [{"neighbors": neighbors}]}
 
+        vt = vertex_type or self._infer_vertex_type(entity_id)
+        if not vt:
+            return {"results": [{"neighbors": []}]}
+
+        cache_key = (vt, str(entity_id), edge_type or "", limit)
+        cached = self._neighbor_cache.get(cache_key)
+        now = time.time()
+        if cached and (now - cached[0]) < self._cache_ttl_s:
+            self._cache_hits += 1
+            return cached[1]
+        self._cache_misses += 1
+
         try:
-            if vertex_type:
-                neighbors = self._tg_conn.getNeighbors(vertex_type, entity_id, limit=limit)
+            if edge_type:
+                edges = self._tg_conn.getEdges(vt, str(entity_id), edge_type)
             else:
-                neighbors = self._tg_conn.getNeighbors("Person", entity_id, limit=limit)
-            return {"results": [{"neighbors": neighbors}]}
+                edges = self._tg_conn.getEdges(vt, str(entity_id))
         except Exception as e:
-            logger.error(f"get_neighbors({entity_id}) failed: {e}")
-            self._enable_offline_mode()
-            return self.get_neighbors(entity_id, vertex_type, edge_type, limit, depth)
+            logger.warning(f"getEdges({vt}/{entity_id}) failed: {e}")
+            empty = {"results": [{"neighbors": []}]}
+            self._neighbor_cache[cache_key] = (now, empty)
+            return empty
+
+        neighbors: list[dict] = []
+        for e in edges[:limit]:
+            from_id = e.get("from_id", "")
+            to_id   = e.get("to_id",   "")
+            e_type  = e.get("e_type",  e.get("edge_type", ""))
+            if from_id == str(entity_id):
+                target, target_type = to_id, e.get("to_type", "")
+            else:
+                target, target_type = from_id, e.get("from_type", "")
+            neighbors.append({
+                "v_id":      target,
+                "type":      target_type,
+                "edge_type": e_type,
+                "attributes": e.get("attributes", {}),
+            })
+        result = {"results": [{"neighbors": neighbors}]}
+        self._neighbor_cache[cache_key] = (now, result)
+        return result
 
     def get_edges(self, from_id: str, from_type: str = "", edge_type: str = "", limit: int = 100) -> list[dict]:
         """Get edges from an entity using pyTigerGraph."""
@@ -443,113 +423,97 @@ class GraphClient:
             return edges
 
         try:
-            from_vtype = from_type or "Person"
-            edges = self._tg_conn.getEdges(from_vtype, from_id, edge_type or "*", limit=limit)
-            return edges
+            from_vtype = from_type or self._infer_vertex_type(from_id) or "Person"
+            if edge_type:
+                edges = self._tg_conn.getEdges(from_vtype, from_id, edge_type)
+            else:
+                edges = self._tg_conn.getEdges(from_vtype, from_id)
+            return edges[:limit] if isinstance(edges, list) else []
         except Exception as e:
-            logger.error(f"get_edges failed: {e}")
+            logger.warning(f"get_edges({from_vtype}/{from_id}) failed: {e}")
             return []
 
     def upsert_vertex(self, vertex_type: str, attributes: dict) -> bool:
-        """Upsert a single vertex."""
+        """Upsert a single vertex via pyTigerGraph."""
         if self._offline_mode:
             return True
 
         v_id = attributes.get("v_id") or attributes.get("id")
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
-        if v_id:
-            url += f"/{v_id}"
+        if not v_id:
+            logger.error("upsert_vertex: missing vertex id")
+            return False
 
-        payload = {"attributes": {k: v for k, v in attributes.items() if k not in ("v_id", "id")}}
-        if v_id:
-            payload["vertexId"] = str(v_id)
-
+        attrs = {k: v for k, v in attributes.items() if k not in ("v_id", "id")}
         try:
-            resp = self._session.post(url, json=payload, timeout=15)
-            return resp.status_code in (200, 201, 202)
+            result = self._tg_conn.upsertVertex(vertex_type, str(v_id), attrs)
+            return result > 0
         except Exception as e:
             logger.error(f"upsert_vertex failed: {e}")
             return False
 
     def upsert_edge(self, edge_type: str, from_type: str, from_id: str, to_type: str, to_id: str, attributes: Optional[dict] = None) -> bool:
-        """Upsert a single edge."""
+        """Upsert a single edge via pyTigerGraph."""
         if self._offline_mode:
             return True
 
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_type}/{from_id}/{edge_type}/{to_type}/{to_id}"
         try:
-            resp = self._session.put(url, json={"attributes": attributes or {}}, timeout=15)
-            return resp.status_code in (200, 201, 202)
+            result = self._tg_conn.upsertEdge(from_type, str(from_id), edge_type, to_type, str(to_id), attributes or {})
+            return result > 0
         except Exception as e:
             logger.error(f"upsert_edge failed: {e}")
             return False
 
     def upsert_batch_vertices(self, vertex_type: str, records: list[dict]) -> dict:
-        """Upsert multiple vertices via batch."""
+        """Upsert multiple vertices via pyTigerGraph batch."""
         if self._offline_mode or not records:
             return {"loadSuccess": len(records), "loadFailure": 0}
 
-        formatted = []
+        vertices = []
         for rec in records:
             v_id = rec.get("v_id") or rec.get("id", "")
+            if not v_id:
+                continue
             attrs = {k: v for k, v in rec.items() if k not in ("v_id", "id")}
-            item = {"vertexType": vertex_type, "attributes": attrs}
-            if v_id:
-                item["vertexId"] = str(v_id)
-            formatted.append(item)
+            vertices.append((str(v_id), attrs))
 
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
         try:
-            resp = self._session.post(url, json=formatted, timeout=120)
-            if resp.status_code == 200:
-                return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            result = self._tg_conn.upsertVertices(vertex_type, vertices)
+            return {"loadSuccess": result, "loadFailure": len(records) - result}
         except Exception as e:
             logger.error(f"upsert_batch_vertices failed: {e}")
             return {"error": str(e)}
 
     def upsert_batch_edges(self, edge_type: str, records: list[dict]) -> dict:
-        """Upsert multiple edges via batch."""
+        """Upsert multiple edges via pyTigerGraph batch."""
         if self._offline_mode or not records:
             return {"loadSuccess": len(records), "loadFailure": 0}
 
-        formatted = []
+        # Group by (from_type, to_type) since upsertEdges requires consistent vertex types
+        from collections import defaultdict
+        groups: dict[tuple, list] = defaultdict(list)
         for rec in records:
-            formatted.append({
-                "edgeType": edge_type,
-                "fromVertexType": rec.get("from_type", "Person"),
-                "fromVertexId": str(rec.get("from_id", "")),
-                "toVertexType": rec.get("to_type", "Person"),
-                "toVertexId": str(rec.get("to_id", "")),
-                "attributes": {k: v for k, v in rec.items()
-                              if k not in ("from_id", "to_id", "from_type", "to_type")},
-            })
+            ft = rec.get("from_type", "Person")
+            tt = rec.get("to_type", "FraudRing")
+            attrs = {k: v for k, v in rec.items() if k not in ("from_id", "to_id", "from_type", "to_type")}
+            groups[(ft, tt)].append((str(rec.get("from_id", "")), str(rec.get("to_id", "")), attrs))
 
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/edges"
+        total_upserted = 0
         try:
-            resp = self._session.post(url, json=formatted, timeout=120)
-            if resp.status_code == 200:
-                return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            for (from_type, to_type), edges in groups.items():
+                result = self._tg_conn.upsertEdges(from_type, edge_type, to_type, edges)
+                total_upserted += result
+            return {"loadSuccess": total_upserted, "loadFailure": len(records) - total_upserted}
         except Exception as e:
             logger.error(f"upsert_batch_edges failed: {e}")
             return {"error": str(e)}
 
     def run_gsql(self, query_string: str) -> dict:
-        """Run inline GSQL query."""
+        """Run inline GSQL query via pyTigerGraph."""
+        if self._offline_mode:
+            return {"error": "offline_mode", "message": "GSQL skipped in offline mode"}
         try:
-            resp = self._session.post(
-                f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql",
-                json={"query": query_string},
-                params={"graphname": self.tg.graph},
-                timeout=60,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if "error" in data and data.get("error"):
-                    return data
-                return {"results": data.get("results", [data])}
-            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            result = self._tg_conn.gsql(query_string)
+            return {"results": result}
         except Exception as e:
             logger.error(f"run_gsql failed: {e}")
             return {"error": str(e)}
@@ -567,7 +531,7 @@ class GraphClient:
             return {"error": str(e)}
 
     def install_queries(self, gsql_dir: str) -> dict:
-        """Install GSQL queries from directory."""
+        """Install GSQL queries from directory via pyTigerGraph."""
         from pathlib import Path
 
         if self._offline_mode:
@@ -582,22 +546,8 @@ class GraphClient:
             try:
                 with open(gsql_file, "r") as f:
                     gsql_content = f.read()
-
-                resp = self._session.post(
-                    f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql",
-                    json={"query": gsql_content},
-                    params={"graphname": self.tg.graph},
-                    timeout=60,
-                )
-
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get("error"):
-                        results[name] = {"success": False, "message": data.get("message", "")[:200]}
-                    else:
-                        results[name] = {"success": True, "message": "installed"}
-                else:
-                    results[name] = {"success": False, "message": f"HTTP {resp.status_code}"}
+                result = self._tg_conn.gsql(gsql_content)
+                results[name] = {"success": True, "message": str(result)[:200]}
             except Exception as e:
                 results[name] = {"success": False, "message": str(e)}
 

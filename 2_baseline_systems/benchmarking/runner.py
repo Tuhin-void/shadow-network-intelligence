@@ -47,6 +47,18 @@ class BenchmarkRunner:
             base_url=self.config.get("ollama_base_url", "http://localhost:11434"),
             api_key=self.config.get("openai_api_key", ""),
         )
+        # Separate judge LLM (defaults to pipeline LLM with a warning).
+        judge_provider = self.config.get("judge_llm_provider")
+        judge_model    = self.config.get("judge_llm_model")
+        if judge_provider:
+            self.judge_llm = LLMClient(
+                provider=judge_provider,
+                model=judge_model or "llama3.2",
+                base_url=self.config.get("ollama_base_url", "http://localhost:11434"),
+                api_key=self.config.get("openai_api_key", ""),
+            )
+        else:
+            self.judge_llm = None  # consumer should pass None → Scorer warns
         self.tokens = TokenTracker(model=self.config.get("llm_model", "llama3.2"))
         self.vector_store = VectorStore(
             provider=self.config.get("vector_provider", "mock"),
@@ -72,10 +84,12 @@ class BenchmarkRunner:
                 from adapters.tigergraph_adapter import create_adapter
 
                 config = get_config()
-                loader = AdaptiveDataLoader(self.config.get("profile", "small"))
+                loader = AdaptiveDataLoader(self.profile)
                 dataset = loader.load()
                 graph_client = GraphClient(config, dataset=dataset)
-                graph_retriever = create_adapter(graph_client)
+                # Pass the shared embedder so GraphRAG can do semantic entity
+                # matching for NL queries that lack explicit entity IDs.
+                graph_retriever = create_adapter(graph_client, embedder=self.embedder)
 
             self._pipelines = {
                 "pure_llm": PureLLMPipeline(

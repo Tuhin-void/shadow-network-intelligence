@@ -1,0 +1,19 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_ring_members IF EXISTS
+CREATE QUERY tg_ring_members(VERTEX<FraudRing> ring) FOR GRAPH ShadowGraph {
+    // Use reverse-edge traversal (live schema declares REVERSE_EDGE on each
+    // *_MEMBER_OF_RING / *_CONNECTED_TO_RING edge) to walk FROM a FraudRing
+    // into all its members in one shot.
+    Start = {ring};
+
+    PersonMembers      = SELECT s FROM Start:r - (reverse_person_member_of_ring) - Person:s;
+    CompanyMembers     = SELECT s FROM Start:r - (reverse_company_member_of_ring) - Company:s;
+    AccountMembers     = SELECT s FROM Start:r - (reverse_account_member_of_ring) - Account:s;
+    TransactionMembers = SELECT s FROM Start:r - (reverse_transaction_member_of_ring) - Transaction:s;
+    DeviceConnections  = SELECT s FROM Start:r - (reverse_device_connected_to_ring) - Device:s;
+    AddressConnections = SELECT s FROM Start:r - (reverse_address_connected_to_ring) - Address:s;
+
+    PRINT PersonMembers, CompanyMembers, AccountMembers,
+          TransactionMembers, DeviceConnections, AddressConnections;
+}
+INSTALL QUERY tg_ring_members

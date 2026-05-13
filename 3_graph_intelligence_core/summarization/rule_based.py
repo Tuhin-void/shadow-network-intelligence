@@ -10,7 +10,12 @@ class GraphAwareSummarizer:
     - Strict single paragraph or bulleted list format
     """
 
-    PRIORITY_EDGES = {"OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION", "PART_OF", "REGISTERED_AT"}
+    PRIORITY_EDGES = {
+        "OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION",
+        "TRANSFERRED_TO", "REGISTERED_AT", "BENEFITS_FROM",
+        "PERSON_MEMBER_OF_RING", "COMPANY_MEMBER_OF_RING",
+        "ACCOUNT_MEMBER_OF_RING", "TRANSACTION_MEMBER_OF_RING",
+    }
 
     def __init__(self, max_tokens: int = 8000):
         self.max_tokens = max_tokens
@@ -39,26 +44,36 @@ class GraphAwareSummarizer:
                 seen_entity_names.add(name)
                 unique_entities.append(e)
 
+        # Prefer high-risk entities; if none reach the bar, surface the
+        # top-reranked entities anyway (post-topology-rerank `score` already
+        # encodes structural relevance, so the report is still meaningful).
         high_risk_entities = [e for e in unique_entities if (e.get("risk_score") or 0) >= 0.5]
-        high_risk_entities.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
-        top_entities = high_risk_entities[:6]
+        high_risk_entities.sort(key=lambda x: x.get("risk_score") or 0, reverse=True)
+        if high_risk_entities:
+            top_entities = high_risk_entities[:6]
+        else:
+            top_entities = sorted(
+                unique_entities,
+                key=lambda x: (x.get("score") or 0, x.get("ring_touch_count", 0)),
+                reverse=True,
+            )[:6]
 
         seen_connection_keys = set()
         unique_context = []
         for n in context:
-            key = (n.get("name", n.get("v_id", "")), n.get("edge", ""))
+            key = (n.get("name") or n.get("v_id", ""), n.get("edge", ""))
             if key not in seen_connection_keys:
                 seen_connection_keys.add(key)
                 unique_context.append(n)
 
         priority_edges = sorted(
             [n for n in unique_context if n.get("edge", "") in self.PRIORITY_EDGES],
-            key=lambda x: x.get("risk_score", 0),
+            key=lambda x: x.get("risk_score") or 0,
             reverse=True,
         )
         other_edges = sorted(
             [n for n in unique_context if n.get("edge", "") not in self.PRIORITY_EDGES],
-            key=lambda x: x.get("risk_score", 0),
+            key=lambda x: x.get("risk_score") or 0,
             reverse=True,
         )
         top_connections = (priority_edges + other_edges)[:6]
@@ -86,34 +101,107 @@ class GraphAwareSummarizer:
             if attrs.get("shell_company"):
                 risk_flags.add("shell_company")
 
-        lines = ["GRAPH SUMMARY:"]
+        # Build an investigative report that visibly leverages graph structure.
+        # Sections are produced in priority order; later sections may be
+        # truncated by the token budget but earlier ones always survive.
+        sections: list[str] = []
+
+        # ── Section 1: Suspects (entities with topology evidence) ─────────
         if top_entities:
-            entity_strs = [f"[{e.get('type', 'Entity')}:{e.get('name', e.get('v_id', '?'))}]" for e in top_entities]
-            lines.append(f"Entities: {', '.join(entity_strs)} ({len(entities)} total)")
-        else:
-            lines.append("Entities: None")
+            suspect_lines: list[str] = []
+            for e in top_entities[:4]:
+                eid = e.get("v_id", "?")
+                etype = e.get("type", "Entity")
+                ename = e.get("name") or eid
+                risk = e.get("risk_score") or 0
+                ring_touch = e.get("ring_touch_count", 0)
+                degree = e.get("fraud_degree", 0)
+                badges: list[str] = []
+                if ring_touch:
+                    badges.append(f"in {ring_touch} ring(s)")
+                if degree >= 3:
+                    badges.append(f"{degree} fraud-edges")
+                try:
+                    rfmt = f"{float(risk):.2f}" if float(risk) <= 1 else f"{int(risk)}"
+                except (TypeError, ValueError):
+                    rfmt = "?"
+                badge_str = f" [{', '.join(badges)}]" if badges else ""
+                suspect_lines.append(f"  • {etype} {ename} ({eid}) — risk {rfmt}{badge_str}")
+            sections.append("SUSPECTS:\n" + "\n".join(suspect_lines))
 
-        if risk_flags:
-            lines.append(f"Risk Flags: [{', '.join(sorted(risk_flags))}]")
+        # ── Section 2: Ring connections (the highest-value structural signal) ──
+        ring_edges = [n for n in unique_context if "_MEMBER_OF_RING" in n.get("edge", "")
+                      or "_CONNECTED_TO_RING" in n.get("edge", "")
+                      or n.get("edge", "").startswith("co-")]
+        if ring_edges:
+            ring_lines: list[str] = []
+            for n in ring_edges[:5]:
+                via = n.get("via", "")
+                via_part = f" (via {via})" if via else ""
+                ring_lines.append(
+                    f"  • {n.get('type', '?')} {n.get('name') or n.get('v_id', '?')} "
+                    f"— {n.get('edge', '?')}{via_part}"
+                )
+            sections.append("RING CONNECTIONS:\n" + "\n".join(ring_lines))
 
-        if top_connections:
-            conn_strs = []
-            for n in top_connections:
-                src = n.get("type", "?")
-                edge = n.get("edge", "?")
-                tgt = n.get("name", n.get("v_id", "?"))
-                conn_strs.append(f"[{src}]--[{edge}]-->[{tgt}]")
-            lines.append(f"Connections: {', '.join(conn_strs)}")
+        # ── Section 3: Beneficial-owner / control / ownership chains ──────
+        ownership_edges = [n for n in unique_context
+                           if n.get("edge", "") in ("OWNS", "BENEFITS_FROM",
+                                                     "TRANSFERRED_TO", "HAS_ACCOUNT")]
+        if ownership_edges:
+            own_lines: list[str] = []
+            for n in ownership_edges[:4]:
+                via = n.get("via", "")
+                via_part = f" (from {via})" if via else ""
+                own_lines.append(
+                    f"  • {n.get('edge', '?')}: {n.get('type', '?')} "
+                    f"{n.get('name') or n.get('v_id', '?')}{via_part}"
+                )
+            sections.append("OWNERSHIP / FLOW:\n" + "\n".join(own_lines))
 
+        # ── Section 4: Shared-infrastructure (hidden collusion signal) ────
+        shared_edges = [n for n in unique_context if n.get("edge", "")
+                        in ("SHARES_DEVICE_WITH", "SHARES_ADDRESS_WITH",
+                            "USES_DEVICE", "LOCATED_AT", "ACCESSED_FROM",
+                            "ASSOCIATED_WITH")]
+        if shared_edges:
+            shared_lines: list[str] = []
+            for n in shared_edges[:4]:
+                shared_lines.append(
+                    f"  • {n.get('edge', '?')}: {n.get('type', '?')} "
+                    f"{n.get('name') or n.get('v_id', '?')}"
+                )
+            sections.append("SHARED INFRASTRUCTURE:\n" + "\n".join(shared_lines))
+
+        # ── Section 5: Traversal paths (if path retriever found any) ──────
+        paths = retrieval_result.get("paths", [])
+        if paths:
+            path_lines: list[str] = []
+            for p in paths[:3]:
+                frm = p.get("from", "?")
+                to  = p.get("to", "?")
+                length = p.get("length") or p.get("path_length") or 0
+                path_lines.append(f"  • {frm} → ... → {to}  (length {length})")
+            sections.append("TRAVERSAL PATHS:\n" + "\n".join(path_lines))
+
+        # ── Section 6: Aggregate signals ──────────────────────────────────
+        agg_bits: list[str] = []
         if entity_type_counts:
-            type_summary = ", ".join(f"{k}({v})" for k, v in sorted(entity_type_counts.items()))
-            lines.append(f"Type Distribution: {type_summary}")
-
+            agg_bits.append("Entity mix: " + ", ".join(
+                f"{k}={v}" for k, v in sorted(entity_type_counts.items())
+            ))
+        if risk_flags:
+            agg_bits.append("Risk flags: " + ", ".join(sorted(risk_flags)))
         if total_risk > 0:
-            lines.append(f"Total Risk: {total_risk:.2f}")
+            agg_bits.append(f"Avg risk: {total_risk:.2f}")
+        if agg_bits:
+            sections.append("SIGNALS:\n  • " + "\n  • ".join(agg_bits))
 
-        combined = " ".join(lines)
-        return self._truncate(combined, max_output_tokens)
+        if not sections:
+            return "No graph evidence retrieved."
+
+        report = "\n".join(sections)
+        return self._truncate(report, max_output_tokens)
 
     def _truncate(self, text: str, max_chars: int) -> str:
         max_chars = max_chars * self.avg_chars_per_token

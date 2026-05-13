@@ -134,6 +134,12 @@ def load_config(config_path: Optional[str] = None) -> Config:
     if os.environ.get("NIM_API_KEY"):
         nim_cfg.api_key = os.environ["NIM_API_KEY"]
     ollama_cfg = OllamaConfig(**raw.get("ollama", {}))
+    if os.environ.get("OLLAMA_HOST"):
+        ollama_cfg.base_url = os.environ["OLLAMA_HOST"]
+    if os.environ.get("OLLAMA_MODEL"):
+        ollama_cfg.llm_model = os.environ["OLLAMA_MODEL"]
+    if os.environ.get("OLLAMA_EMBEDDING_MODEL"):
+        ollama_cfg.embedding_model = os.environ["OLLAMA_EMBEDDING_MODEL"]
     data_cfg = DataConfig(**raw.get("data", {}))
     ingest_cfg = IngestionConfig(**raw.get("ingestion", {}))
     grag_cfg = GraphRAGConfig(**raw.get("graphrag", {}))

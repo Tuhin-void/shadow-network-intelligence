@@ -1,1491 +1,506 @@
 {
-  "FR-CIRC-00": {
-    "id": "FR-CIRC-00",
+  "FR-001": {
+    "id": "FR-001",
+    "ring_type": "layering_chain",
+    "severity": "high",
+    "name": "layering_chain ring FR-001",
+    "description": "Layering chain of 7 accounts moving funds through 6 suspicious transactions",
+    "entities": [
+      "A-004601",
+      "A-007570",
+      "A-004580",
+      "A-008567",
+      "A-004548",
+      "A-006948",
+      "A-006696",
+      "TX-FR000001",
+      "TX-FR000002",
+      "TX-FR000003",
+      "TX-FR000004",
+      "TX-FR000005",
+      "TX-FR000006"
+    ],
+    "edges": [],
+    "traversal_paths": [],
+    "key_entities": [
+      "A-004601",
+      "A-007570",
+      "TX-FR000001"
+    ],
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.076315",
+    "metadata": {}
+  },
+  "FR-002": {
+    "id": "FR-002",
     "ring_type": "circular_ownership",
     "severity": "critical",
-    "name": "Circular Ownership Ring FR-CIRC-00",
-    "description": "Shell companies with circular ownership structure for fund obscuration",
+    "name": "circular_ownership ring FR-002",
+    "description": "Circular ownership ring across 5 shell companies controlled by 5 persons",
     "entities": [
-      "C-000913",
-      "C-000205",
-      "C-002254"
+      "C-003267",
+      "C-001796",
+      "C-004057",
+      "C-000028",
+      "C-001196",
+      "P-005027",
+      "P-003329",
+      "P-001041",
+      "P-005473",
+      "P-001991"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "C-000913",
-        "C-000205",
-        "C-002254",
-        "C-000913"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "C-000913",
-      "C-000205",
-      "C-002254"
+      "P-005027"
     ],
-    "expected_questions": [
-      "Find all companies in circular ownership with this entity",
-      "Identify the ownership loop starting from company X"
-    ],
-    "expected_graph_paths": [
-      "C-000913->OWNS->C-000205",
-      "C-000205->OWNS->C-002254",
-      "C-002254->OWNS->C-000913"
-    ],
-    "creation_seed": 42,
-    "created_at": "2026-05-12T23:22:19.899252",
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.076373",
     "metadata": {}
   },
-  "FR-CIRC-01": {
-    "id": "FR-CIRC-01",
+  "FR-003": {
+    "id": "FR-003",
+    "ring_type": "funnel_account",
+    "severity": "high",
+    "name": "funnel_account ring FR-003",
+    "description": "Funnel pattern: 11 accounts feeding into A-003672 via 11 suspicious transactions",
+    "entities": [
+      "A-003672",
+      "A-007886",
+      "A-003937",
+      "A-000407",
+      "A-009668",
+      "A-005191",
+      "A-009072",
+      "A-002176",
+      "A-008204",
+      "A-008098",
+      "A-006881",
+      "A-004237",
+      "TX-FR000007",
+      "TX-FR000008",
+      "TX-FR000009",
+      "TX-FR000010",
+      "TX-FR000011",
+      "TX-FR000012",
+      "TX-FR000013",
+      "TX-FR000014",
+      "TX-FR000015",
+      "TX-FR000016",
+      "TX-FR000017"
+    ],
+    "edges": [],
+    "traversal_paths": [],
+    "key_entities": [
+      "A-003672",
+      "TX-FR000007"
+    ],
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.077580",
+    "metadata": {}
+  },
+  "FR-004": {
+    "id": "FR-004",
+    "ring_type": "layering_chain",
+    "severity": "high",
+    "name": "layering_chain ring FR-004",
+    "description": "Layering chain of 6 accounts moving funds through 5 suspicious transactions",
+    "entities": [
+      "A-008268",
+      "A-009127",
+      "A-001366",
+      "A-004853",
+      "A-003655",
+      "A-008120",
+      "TX-FR000018",
+      "TX-FR000019",
+      "TX-FR000020",
+      "TX-FR000021",
+      "TX-FR000022"
+    ],
+    "edges": [],
+    "traversal_paths": [],
+    "key_entities": [
+      "A-008268",
+      "A-009127",
+      "TX-FR000018"
+    ],
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.077668",
+    "metadata": {}
+  },
+  "FR-005": {
+    "id": "FR-005",
     "ring_type": "circular_ownership",
     "severity": "critical",
-    "name": "Circular Ownership Ring FR-CIRC-01",
-    "description": "Shell companies with circular ownership structure for fund obscuration",
+    "name": "circular_ownership ring FR-005",
+    "description": "Circular ownership ring across 5 shell companies controlled by 5 persons",
     "entities": [
-      "C-002044",
-      "C-001198",
-      "C-002910",
-      "C-000451",
-      "C-002710"
+      "C-003022",
+      "C-003873",
+      "C-004186",
+      "C-001200",
+      "C-004669",
+      "P-000704",
+      "P-005921",
+      "P-004756",
+      "P-001802",
+      "P-002833"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "C-002044",
-        "C-001198",
-        "C-002910",
-        "C-000451",
-        "C-002710",
-        "C-002044"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "C-002044",
-      "C-001198",
-      "C-002910"
-    ],
-    "expected_questions": [
-      "Find all companies in circular ownership with this entity",
-      "Identify the ownership loop starting from company X"
-    ],
-    "expected_graph_paths": [
-      "C-002044->OWNS->C-001198",
-      "C-001198->OWNS->C-002910",
-      "C-002910->OWNS->C-000451",
-      "C-000451->OWNS->C-002710",
-      "C-002710->OWNS->C-002044"
-    ],
-    "creation_seed": 1042,
-    "created_at": "2026-05-12T23:22:19.899298",
-    "metadata": {}
-  },
-  "FR-FUNNEL-00": {
-    "id": "FR-FUNNEL-00",
-    "ring_type": "funnel_account",
-    "severity": "high",
-    "name": "Funnel Account Network FR-FUNNEL-00",
-    "description": "Multiple source accounts funneling funds to single laundering account",
-    "entities": [
-      "A-000632",
-      "A-004688",
-      "A-002359",
-      "A-007579",
-      "A-006061",
-      "A-001578",
-      "A-007426",
-      "A-009811",
-      "A-008164",
-      "A-009978"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-000632",
-        "A-004688",
-        "A-002359",
-        "A-007579",
-        "A-006061",
-        "A-001578",
-        "A-007426",
-        "A-009811",
-        "A-008164",
-        "A-009978"
-      ]
-    ],
-    "key_entities": [
-      "A-009978"
-    ],
-    "expected_questions": [
-      "Find accounts that funnel funds to A-009978",
-      "Identify transaction funnels with high concentration"
-    ],
-    "expected_graph_paths": [
-      "A-000632->TRANSFERRED_TO->A-009978",
-      "A-004688->TRANSFERRED_TO->A-009978",
-      "A-002359->TRANSFERRED_TO->A-009978",
-      "A-007579->TRANSFERRED_TO->A-009978",
-      "A-006061->TRANSFERRED_TO->A-009978",
-      "A-001578->TRANSFERRED_TO->A-009978",
-      "A-007426->TRANSFERRED_TO->A-009978",
-      "A-009811->TRANSFERRED_TO->A-009978",
-      "A-008164->TRANSFERRED_TO->A-009978"
-    ],
-    "creation_seed": 43,
-    "created_at": "2026-05-12T23:22:19.900067",
-    "metadata": {}
-  },
-  "FR-FUNNEL-01": {
-    "id": "FR-FUNNEL-01",
-    "ring_type": "funnel_account",
-    "severity": "high",
-    "name": "Funnel Account Network FR-FUNNEL-01",
-    "description": "Multiple source accounts funneling funds to single laundering account",
-    "entities": [
-      "A-009523",
-      "A-005963",
-      "A-005289",
-      "A-007736",
-      "A-003949",
-      "A-003651",
-      "A-000717",
-      "A-005281"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-009523",
-        "A-005963",
-        "A-005289",
-        "A-007736",
-        "A-003949",
-        "A-003651",
-        "A-000717",
-        "A-005281"
-      ]
-    ],
-    "key_entities": [
-      "A-005281"
-    ],
-    "expected_questions": [
-      "Find accounts that funnel funds to A-005281",
-      "Identify transaction funnels with high concentration"
-    ],
-    "expected_graph_paths": [
-      "A-009523->TRANSFERRED_TO->A-005281",
-      "A-005963->TRANSFERRED_TO->A-005281",
-      "A-005289->TRANSFERRED_TO->A-005281",
-      "A-007736->TRANSFERRED_TO->A-005281",
-      "A-003949->TRANSFERRED_TO->A-005281",
-      "A-003651->TRANSFERRED_TO->A-005281",
-      "A-000717->TRANSFERRED_TO->A-005281"
-    ],
-    "creation_seed": 1043,
-    "created_at": "2026-05-12T23:22:19.901228",
-    "metadata": {}
-  },
-  "FR-FUNNEL-02": {
-    "id": "FR-FUNNEL-02",
-    "ring_type": "funnel_account",
-    "severity": "high",
-    "name": "Funnel Account Network FR-FUNNEL-02",
-    "description": "Multiple source accounts funneling funds to single laundering account",
-    "entities": [
-      "A-007919",
-      "A-003979",
-      "A-009433",
-      "A-009161",
-      "A-009219",
-      "A-006892",
-      "A-002174",
-      "A-007557",
-      "A-004330",
-      "A-008359",
-      "A-002346",
-      "A-007665",
-      "A-005852"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-007919",
-        "A-003979",
-        "A-009433",
-        "A-009161",
-        "A-009219",
-        "A-006892",
-        "A-002174",
-        "A-007557",
-        "A-004330",
-        "A-008359",
-        "A-002346",
-        "A-007665",
-        "A-005852"
-      ]
-    ],
-    "key_entities": [
-      "A-005852"
-    ],
-    "expected_questions": [
-      "Find accounts that funnel funds to A-005852",
-      "Identify transaction funnels with high concentration"
-    ],
-    "expected_graph_paths": [
-      "A-007919->TRANSFERRED_TO->A-005852",
-      "A-003979->TRANSFERRED_TO->A-005852",
-      "A-009433->TRANSFERRED_TO->A-005852",
-      "A-009161->TRANSFERRED_TO->A-005852",
-      "A-009219->TRANSFERRED_TO->A-005852",
-      "A-006892->TRANSFERRED_TO->A-005852",
-      "A-002174->TRANSFERRED_TO->A-005852",
-      "A-007557->TRANSFERRED_TO->A-005852",
-      "A-004330->TRANSFERRED_TO->A-005852",
-      "A-008359->TRANSFERRED_TO->A-005852",
-      "A-002346->TRANSFERRED_TO->A-005852",
-      "A-007665->TRANSFERRED_TO->A-005852"
-    ],
-    "creation_seed": 2043,
-    "created_at": "2026-05-12T23:22:19.902881",
-    "metadata": {}
-  },
-  "FR-SMURF-00": {
-    "id": "FR-SMURF-00",
-    "ring_type": "smurfing_ring",
-    "severity": "high",
-    "name": "Smurfing Ring 0",
-    "description": "Multiple sub-10K transactions to avoid CTR reporting",
-    "entities": [
-      "A-006694",
-      "A-008521",
-      "A-008880",
-      "A-001912",
-      "A-002895",
-      "A-006219",
-      "A-003690",
-      "A-004745",
-      "A-000477",
-      "A-003682"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-006694",
-        "A-008521",
-        "A-008880",
-        "A-001912",
-        "A-002895",
-        "A-006219",
-        "A-003690",
-        "A-004745",
-        "A-000477",
-        "A-003682"
-      ]
-    ],
-    "key_entities": [
-      "A-003682"
+      "P-000704"
     ],
     "expected_questions": [],
     "expected_graph_paths": [],
-    "creation_seed": 44,
-    "created_at": "2026-05-12T23:22:19.903523",
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.077725",
     "metadata": {}
   },
-  "FR-SMURF-01": {
-    "id": "FR-SMURF-01",
-    "ring_type": "smurfing_ring",
+  "FR-006": {
+    "id": "FR-006",
+    "ring_type": "funnel_account",
     "severity": "high",
-    "name": "Smurfing Ring 1",
-    "description": "Multiple sub-10K transactions to avoid CTR reporting",
+    "name": "funnel_account ring FR-006",
+    "description": "Funnel pattern: 9 accounts feeding into A-002382 via 9 suspicious transactions",
     "entities": [
-      "A-003667",
-      "A-005854",
-      "A-007353",
-      "A-007321",
-      "A-009970",
-      "A-000638",
-      "A-003450",
-      "A-002394",
-      "A-002223",
-      "A-009042"
+      "A-002382",
+      "A-006194",
+      "A-000874",
+      "A-009291",
+      "A-003674",
+      "A-009140",
+      "A-004090",
+      "A-007179",
+      "A-003375",
+      "A-004904",
+      "TX-FR000023",
+      "TX-FR000024",
+      "TX-FR000025",
+      "TX-FR000026",
+      "TX-FR000027",
+      "TX-FR000028",
+      "TX-FR000029",
+      "TX-FR000030",
+      "TX-FR000031"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-003667",
-        "A-005854",
-        "A-007353",
-        "A-007321",
-        "A-009970",
-        "A-000638",
-        "A-003450",
-        "A-002394",
-        "A-002223",
-        "A-009042"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-009042"
+      "A-002382",
+      "TX-FR000023"
     ],
     "expected_questions": [],
     "expected_graph_paths": [],
-    "creation_seed": 1044,
-    "created_at": "2026-05-12T23:22:19.904736",
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.078728",
     "metadata": {}
   },
-  "FR-SMURF-02": {
-    "id": "FR-SMURF-02",
-    "ring_type": "smurfing_ring",
+  "FR-007": {
+    "id": "FR-007",
+    "ring_type": "layering_chain",
     "severity": "high",
-    "name": "Smurfing Ring 2",
-    "description": "Multiple sub-10K transactions to avoid CTR reporting",
+    "name": "layering_chain ring FR-007",
+    "description": "Layering chain of 6 accounts moving funds through 5 suspicious transactions",
     "entities": [
-      "A-002024",
-      "A-005313",
-      "A-001774",
-      "A-008545",
-      "A-004280",
-      "A-008190",
-      "A-008631",
-      "A-000792",
-      "A-001960",
-      "A-006512",
-      "A-001048"
+      "A-007262",
+      "A-004802",
+      "A-005336",
+      "A-009149",
+      "A-004701",
+      "A-007219",
+      "TX-FR000032",
+      "TX-FR000033",
+      "TX-FR000034",
+      "TX-FR000035",
+      "TX-FR000036"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-002024",
-        "A-005313",
-        "A-001774",
-        "A-008545",
-        "A-004280",
-        "A-008190",
-        "A-008631",
-        "A-000792",
-        "A-001960",
-        "A-006512",
-        "A-001048"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-001048"
+      "A-007262",
+      "A-004802",
+      "TX-FR000032"
     ],
     "expected_questions": [],
     "expected_graph_paths": [],
-    "creation_seed": 2044,
-    "created_at": "2026-05-12T23:22:19.906736",
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.078785",
     "metadata": {}
   },
-  "FR-LAYER-00": {
-    "id": "FR-LAYER-00",
-    "ring_type": "layering_chain",
+  "FR-008": {
+    "id": "FR-008",
+    "ring_type": "circular_ownership",
     "severity": "critical",
-    "name": "Laundering Chain 0",
-    "description": "Multi-hop chain with 6 accounts",
+    "name": "circular_ownership ring FR-008",
+    "description": "Circular ownership ring across 5 shell companies controlled by 5 persons",
     "entities": [
-      "A-004455",
-      "A-006844",
-      "A-007996",
-      "A-004222",
-      "A-001342",
-      "A-004968"
+      "C-002188",
+      "C-003737",
+      "C-002310",
+      "C-003813",
+      "C-003730",
+      "P-002094",
+      "P-000528",
+      "P-001251",
+      "P-000633",
+      "P-003539"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-004455",
-        "A-006844",
-        "A-007996",
-        "A-004222",
-        "A-001342",
-        "A-004968"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-004455"
+      "P-002094"
     ],
     "expected_questions": [],
-    "expected_graph_paths": [
-      "A-004455->TRANSFERRED_TO->A-006844",
-      "A-006844->TRANSFERRED_TO->A-007996",
-      "A-007996->TRANSFERRED_TO->A-004222",
-      "A-004222->TRANSFERRED_TO->A-001342",
-      "A-001342->TRANSFERRED_TO->A-004968"
-    ],
-    "creation_seed": 45,
-    "created_at": "2026-05-12T23:22:19.907251",
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.078834",
     "metadata": {}
   },
-  "FR-LAYER-01": {
-    "id": "FR-LAYER-01",
-    "ring_type": "layering_chain",
-    "severity": "critical",
-    "name": "Laundering Chain 1",
-    "description": "Multi-hop chain with 6 accounts",
+  "FR-009": {
+    "id": "FR-009",
+    "ring_type": "funnel_account",
+    "severity": "high",
+    "name": "funnel_account ring FR-009",
+    "description": "Funnel pattern: 7 accounts feeding into A-009432 via 7 suspicious transactions",
     "entities": [
-      "A-000620",
-      "A-007044",
-      "A-007476",
-      "A-007807",
-      "A-001887",
-      "A-007624"
+      "A-009432",
+      "A-007674",
+      "A-004893",
+      "A-008928",
+      "A-001911",
+      "A-008325",
+      "A-004892",
+      "A-000954",
+      "TX-FR000037",
+      "TX-FR000038",
+      "TX-FR000039",
+      "TX-FR000040",
+      "TX-FR000041",
+      "TX-FR000042",
+      "TX-FR000043"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-000620",
-        "A-007044",
-        "A-007476",
-        "A-007807",
-        "A-001887",
-        "A-007624"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-000620"
+      "A-009432",
+      "TX-FR000037"
     ],
     "expected_questions": [],
-    "expected_graph_paths": [
-      "A-000620->TRANSFERRED_TO->A-007044",
-      "A-007044->TRANSFERRED_TO->A-007476",
-      "A-007476->TRANSFERRED_TO->A-007807",
-      "A-007807->TRANSFERRED_TO->A-001887",
-      "A-001887->TRANSFERRED_TO->A-007624"
-    ],
-    "creation_seed": 1045,
-    "created_at": "2026-05-12T23:22:19.908008",
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.079688",
     "metadata": {}
   },
-  "FR-LAYER-02": {
-    "id": "FR-LAYER-02",
+  "FR-010": {
+    "id": "FR-010",
     "ring_type": "layering_chain",
-    "severity": "critical",
-    "name": "Laundering Chain 2",
-    "description": "Multi-hop chain with 6 accounts",
+    "severity": "high",
+    "name": "layering_chain ring FR-010",
+    "description": "Layering chain of 6 accounts moving funds through 5 suspicious transactions",
     "entities": [
-      "A-002101",
-      "A-006875",
-      "A-000808",
-      "A-009266",
-      "A-003850",
-      "A-001597"
+      "A-008087",
+      "A-008831",
+      "A-000246",
+      "A-003932",
+      "A-009809",
+      "A-003354",
+      "TX-FR000044",
+      "TX-FR000045",
+      "TX-FR000046",
+      "TX-FR000047",
+      "TX-FR000048"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-002101",
-        "A-006875",
-        "A-000808",
-        "A-009266",
-        "A-003850",
-        "A-001597"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-002101"
+      "A-008087",
+      "A-008831",
+      "TX-FR000044"
     ],
     "expected_questions": [],
-    "expected_graph_paths": [
-      "A-002101->TRANSFERRED_TO->A-006875",
-      "A-006875->TRANSFERRED_TO->A-000808",
-      "A-000808->TRANSFERRED_TO->A-009266",
-      "A-009266->TRANSFERRED_TO->A-003850",
-      "A-003850->TRANSFERRED_TO->A-001597"
-    ],
-    "creation_seed": 2045,
-    "created_at": "2026-05-12T23:22:19.909122",
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.079745",
     "metadata": {}
   },
-  "FR-LAYER-03": {
-    "id": "FR-LAYER-03",
-    "ring_type": "layering_chain",
+  "FR-011": {
+    "id": "FR-011",
+    "ring_type": "circular_ownership",
     "severity": "critical",
-    "name": "Laundering Chain 3",
-    "description": "Multi-hop chain with 5 accounts",
+    "name": "circular_ownership ring FR-011",
+    "description": "Circular ownership ring across 5 shell companies controlled by 5 persons",
     "entities": [
-      "A-004269",
-      "A-002874",
-      "A-008250",
-      "A-003684",
-      "A-009899"
+      "C-001096",
+      "C-000129",
+      "C-000364",
+      "C-004426",
+      "C-001373",
+      "P-000929",
+      "P-003762",
+      "P-003117",
+      "P-001393",
+      "P-000785"
     ],
     "edges": [],
-    "traversal_paths": [
-      [
-        "A-004269",
-        "A-002874",
-        "A-008250",
-        "A-003684",
-        "A-009899"
-      ]
-    ],
+    "traversal_paths": [],
     "key_entities": [
-      "A-004269"
+      "P-000929"
     ],
     "expected_questions": [],
-    "expected_graph_paths": [
-      "A-004269->TRANSFERRED_TO->A-002874",
-      "A-002874->TRANSFERRED_TO->A-008250",
-      "A-008250->TRANSFERRED_TO->A-003684",
-      "A-003684->TRANSFERRED_TO->A-009899"
-    ],
-    "creation_seed": 3045,
-    "created_at": "2026-05-12T23:22:19.910637",
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.079791",
     "metadata": {}
   },
-  "FR-ADDR-00": {
-    "id": "FR-ADDR-00",
-    "ring_type": "shared_address",
+  "FR-012": {
+    "id": "FR-012",
+    "ring_type": "funnel_account",
     "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-00",
-    "description": "Multiple entities sharing same address for fraud concealment",
+    "name": "funnel_account ring FR-012",
+    "description": "Funnel pattern: 11 accounts feeding into A-000025 via 11 suspicious transactions",
     "entities": [
-      "P-004822",
-      "P-001873",
-      "C-001245"
+      "A-000025",
+      "A-008470",
+      "A-008449",
+      "A-008432",
+      "A-002897",
+      "A-003467",
+      "A-002040",
+      "A-002882",
+      "A-002635",
+      "A-005580",
+      "A-001431",
+      "A-008901",
+      "TX-FR000049",
+      "TX-FR000050",
+      "TX-FR000051",
+      "TX-FR000052",
+      "TX-FR000053",
+      "TX-FR000054",
+      "TX-FR000055",
+      "TX-FR000056",
+      "TX-FR000057",
+      "TX-FR000058",
+      "TX-FR000059"
     ],
     "edges": [],
     "traversal_paths": [],
     "key_entities": [
-      "ADDR-003639"
+      "A-000025",
+      "TX-FR000049"
     ],
-    "expected_questions": [
-      "Find all entities located at ADDR-003639",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "P-004822->LOCATED_AT->ADDR-003639",
-      "P-001873->LOCATED_AT->ADDR-003639",
-      "C-001245->LOCATED_AT->ADDR-003639"
-    ],
-    "creation_seed": 46,
-    "created_at": "2026-05-12T23:22:19.911069",
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.081013",
     "metadata": {}
   },
-  "FR-ADDR-01": {
-    "id": "FR-ADDR-01",
-    "ring_type": "shared_address",
+  "FR-013": {
+    "id": "FR-013",
+    "ring_type": "layering_chain",
     "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-01",
-    "description": "Multiple entities sharing same address for fraud concealment",
+    "name": "layering_chain ring FR-013",
+    "description": "Layering chain of 7 accounts moving funds through 6 suspicious transactions",
     "entities": [
-      "C-000728",
-      "P-001541",
-      "P-000365",
-      "C-001463",
-      "C-002089",
-      "P-003479",
-      "P-004752"
+      "A-006490",
+      "A-001134",
+      "A-006277",
+      "A-005763",
+      "A-004481",
+      "A-004230",
+      "A-007679",
+      "TX-FR000060",
+      "TX-FR000061",
+      "TX-FR000062",
+      "TX-FR000063",
+      "TX-FR000064",
+      "TX-FR000065"
     ],
     "edges": [],
     "traversal_paths": [],
     "key_entities": [
-      "ADDR-001889"
+      "A-006490",
+      "A-001134",
+      "TX-FR000060"
     ],
-    "expected_questions": [
-      "Find all entities located at ADDR-001889",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "C-000728->LOCATED_AT->ADDR-001889",
-      "P-001541->LOCATED_AT->ADDR-001889",
-      "P-000365->LOCATED_AT->ADDR-001889",
-      "C-001463->LOCATED_AT->ADDR-001889",
-      "C-002089->LOCATED_AT->ADDR-001889",
-      "P-003479->LOCATED_AT->ADDR-001889",
-      "P-004752->LOCATED_AT->ADDR-001889"
-    ],
-    "creation_seed": 1046,
-    "created_at": "2026-05-12T23:22:19.911119",
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.081073",
     "metadata": {}
   },
-  "FR-ADDR-02": {
-    "id": "FR-ADDR-02",
-    "ring_type": "shared_address",
-    "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-02",
-    "description": "Multiple entities sharing same address for fraud concealment",
-    "entities": [
-      "C-003334",
-      "P-001004",
-      "P-002233",
-      "C-003838",
-      "P-000068",
-      "P-001458"
-    ],
-    "edges": [],
-    "traversal_paths": [],
-    "key_entities": [
-      "ADDR-002279"
-    ],
-    "expected_questions": [
-      "Find all entities located at ADDR-002279",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "C-003334->LOCATED_AT->ADDR-002279",
-      "P-001004->LOCATED_AT->ADDR-002279",
-      "P-002233->LOCATED_AT->ADDR-002279",
-      "C-003838->LOCATED_AT->ADDR-002279",
-      "P-000068->LOCATED_AT->ADDR-002279",
-      "P-001458->LOCATED_AT->ADDR-002279"
-    ],
-    "creation_seed": 2046,
-    "created_at": "2026-05-12T23:22:19.911156",
-    "metadata": {}
-  },
-  "FR-ADDR-03": {
-    "id": "FR-ADDR-03",
-    "ring_type": "shared_address",
-    "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-03",
-    "description": "Multiple entities sharing same address for fraud concealment",
-    "entities": [
-      "C-001221",
-      "C-001181",
-      "P-001387",
-      "P-002966",
-      "P-003045"
-    ],
-    "edges": [],
-    "traversal_paths": [],
-    "key_entities": [
-      "ADDR-000081"
-    ],
-    "expected_questions": [
-      "Find all entities located at ADDR-000081",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "C-001221->LOCATED_AT->ADDR-000081",
-      "C-001181->LOCATED_AT->ADDR-000081",
-      "P-001387->LOCATED_AT->ADDR-000081",
-      "P-002966->LOCATED_AT->ADDR-000081",
-      "P-003045->LOCATED_AT->ADDR-000081"
-    ],
-    "creation_seed": 3046,
-    "created_at": "2026-05-12T23:22:19.911187",
-    "metadata": {}
-  },
-  "FR-ADDR-04": {
-    "id": "FR-ADDR-04",
-    "ring_type": "shared_address",
-    "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-04",
-    "description": "Multiple entities sharing same address for fraud concealment",
-    "entities": [
-      "P-000035",
-      "C-004822",
-      "C-000317",
-      "C-003072",
-      "P-005091",
-      "P-003861",
-      "C-001317"
-    ],
-    "edges": [],
-    "traversal_paths": [],
-    "key_entities": [
-      "ADDR-002338"
-    ],
-    "expected_questions": [
-      "Find all entities located at ADDR-002338",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "P-000035->LOCATED_AT->ADDR-002338",
-      "C-004822->LOCATED_AT->ADDR-002338",
-      "C-000317->LOCATED_AT->ADDR-002338",
-      "C-003072->LOCATED_AT->ADDR-002338",
-      "P-005091->LOCATED_AT->ADDR-002338",
-      "P-003861->LOCATED_AT->ADDR-002338",
-      "C-001317->LOCATED_AT->ADDR-002338"
-    ],
-    "creation_seed": 4046,
-    "created_at": "2026-05-12T23:22:19.911223",
-    "metadata": {}
-  },
-  "FR-ADDR-05": {
-    "id": "FR-ADDR-05",
-    "ring_type": "shared_address",
-    "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-05",
-    "description": "Multiple entities sharing same address for fraud concealment",
-    "entities": [
-      "C-001915",
-      "C-004511",
-      "P-001391",
-      "C-003315"
-    ],
-    "edges": [],
-    "traversal_paths": [],
-    "key_entities": [
-      "ADDR-000155"
-    ],
-    "expected_questions": [
-      "Find all entities located at ADDR-000155",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "C-001915->LOCATED_AT->ADDR-000155",
-      "C-004511->LOCATED_AT->ADDR-000155",
-      "P-001391->LOCATED_AT->ADDR-000155",
-      "C-003315->LOCATED_AT->ADDR-000155"
-    ],
-    "creation_seed": 5046,
-    "created_at": "2026-05-12T23:22:19.911249",
-    "metadata": {}
-  },
-  "FR-ADDR-06": {
-    "id": "FR-ADDR-06",
-    "ring_type": "shared_address",
-    "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-06",
-    "description": "Multiple entities sharing same address for fraud concealment",
+  "FR-014": {
+    "id": "FR-014",
+    "ring_type": "circular_ownership",
+    "severity": "critical",
+    "name": "circular_ownership ring FR-014",
+    "description": "Circular ownership ring across 3 shell companies controlled by 3 persons",
     "entities": [
       "C-000757",
-      "P-001879",
-      "P-003052",
-      "P-003313",
-      "P-001979"
+      "C-000458",
+      "C-002583",
+      "P-001883",
+      "P-005737",
+      "P-004986"
     ],
     "edges": [],
     "traversal_paths": [],
     "key_entities": [
-      "ADDR-002191"
+      "P-001883"
     ],
-    "expected_questions": [
-      "Find all entities located at ADDR-002191",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "C-000757->LOCATED_AT->ADDR-002191",
-      "P-001879->LOCATED_AT->ADDR-002191",
-      "P-003052->LOCATED_AT->ADDR-002191",
-      "P-003313->LOCATED_AT->ADDR-002191",
-      "P-001979->LOCATED_AT->ADDR-002191"
-    ],
-    "creation_seed": 6046,
-    "created_at": "2026-05-12T23:22:19.911279",
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.081104",
     "metadata": {}
   },
-  "FR-ADDR-07": {
-    "id": "FR-ADDR-07",
-    "ring_type": "shared_address",
+  "FR-015": {
+    "id": "FR-015",
+    "ring_type": "funnel_account",
     "severity": "high",
-    "name": "Address Collision Cluster FR-ADDR-07",
-    "description": "Multiple entities sharing same address for fraud concealment",
+    "name": "funnel_account ring FR-015",
+    "description": "Funnel pattern: 9 accounts feeding into A-007281 via 9 suspicious transactions",
     "entities": [
-      "P-003531",
-      "C-002091",
-      "C-001162"
+      "A-007281",
+      "A-006652",
+      "A-006814",
+      "A-006114",
+      "A-009354",
+      "A-001855",
+      "A-000255",
+      "A-008298",
+      "A-001038",
+      "A-001337",
+      "TX-FR000066",
+      "TX-FR000067",
+      "TX-FR000068",
+      "TX-FR000069",
+      "TX-FR000070",
+      "TX-FR000071",
+      "TX-FR000072",
+      "TX-FR000073",
+      "TX-FR000074"
     ],
     "edges": [],
     "traversal_paths": [],
     "key_entities": [
-      "ADDR-001192"
+      "A-007281",
+      "TX-FR000066"
     ],
-    "expected_questions": [
-      "Find all entities located at ADDR-001192",
-      "Identify address collision clusters"
-    ],
-    "expected_graph_paths": [
-      "P-003531->LOCATED_AT->ADDR-001192",
-      "C-002091->LOCATED_AT->ADDR-001192",
-      "C-001162->LOCATED_AT->ADDR-001192"
-    ],
-    "creation_seed": 7046,
-    "created_at": "2026-05-12T23:22:19.911299",
+    "expected_questions": [],
+    "expected_graph_paths": [],
+    "creation_seed": 0,
+    "created_at": "2026-05-14T01:52:01.082292",
     "metadata": {}
-  },
-  "FR-OFFSHORE-00": {
-    "id": "FR-OFFSHORE-00",
-    "ring_type": "offshore_routing",
-    "severity": "critical",
-    "name": "Offshore Routing 0",
-    "description": "Cross-border fund transfers to offshore jurisdictions",
-    "entities": [
-      "A-005765",
-      "A-001025",
-      "A-007049",
-      "A-009071",
-      "C-001509"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-005765",
-        "A-001025",
-        "A-007049",
-        "A-009071"
-      ]
-    ],
-    "key_entities": [
-      "A-005765",
-      "C-001509"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 47,
-    "created_at": "2026-05-12T23:22:19.912208",
-    "metadata": {
-      "offshore_jurisdictions": [
-        "KY",
-        "VG"
-      ]
-    }
-  },
-  "FR-OFFSHORE-01": {
-    "id": "FR-OFFSHORE-01",
-    "ring_type": "offshore_routing",
-    "severity": "critical",
-    "name": "Offshore Routing 1",
-    "description": "Cross-border fund transfers to offshore jurisdictions",
-    "entities": [
-      "A-001294",
-      "A-004254",
-      "A-006146",
-      "A-004248",
-      "C-003202"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-001294",
-        "A-004254",
-        "A-006146",
-        "A-004248"
-      ]
-    ],
-    "key_entities": [
-      "A-001294",
-      "C-003202"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 1047,
-    "created_at": "2026-05-12T23:22:19.912743",
-    "metadata": {
-      "offshore_jurisdictions": [
-        "KY",
-        "VG"
-      ]
-    }
-  },
-  "FR-HUB-001": {
-    "id": "FR-HUB-001",
-    "ring_type": "central_hub",
-    "severity": "critical",
-    "name": "Central Laundering Hub",
-    "description": "High-centrality account connecting multiple fraud rings",
-    "entities": [
-      "A-008982",
-      "A-005169",
-      "A-002161",
-      "A-009126",
-      "A-008762",
-      "A-004953",
-      "A-008280",
-      "A-003158",
-      "A-007142",
-      "A-002714",
-      "A-002534",
-      "A-001762",
-      "A-008079"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-005169",
-        "A-002161",
-        "A-009126",
-        "A-008762",
-        "A-004953",
-        "A-008280",
-        "A-003158",
-        "A-007142",
-        "A-002714",
-        "A-002534",
-        "A-001762",
-        "A-008079",
-        "A-008982"
-      ]
-    ],
-    "key_entities": [
-      "A-008982"
-    ],
-    "expected_questions": [
-      "Find the central hub connecting fraud rings",
-      "Identify accounts with highest betweenness centrality"
-    ],
-    "expected_graph_paths": [],
-    "creation_seed": 48,
-    "created_at": "2026-05-12T23:22:19.913475",
-    "metadata": {
-      "connections": 12,
-      "hub_id": "A-008982"
-    }
-  },
-  "FR-DORMANT-00": {
-    "id": "FR-DORMANT-00",
-    "ring_type": "dormant_burst",
-    "severity": "high",
-    "name": "Dormant Account Burst 0",
-    "description": "Previously dormant accounts suddenly activated together",
-    "entities": [
-      "A-005642",
-      "A-006771",
-      "A-001811",
-      "A-005301",
-      "A-009083"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-005642",
-        "A-006771",
-        "A-001811",
-        "A-005301",
-        "A-009083"
-      ]
-    ],
-    "key_entities": [
-      "A-005642",
-      "A-006771"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 49,
-    "created_at": "2026-05-12T23:22:19.913789",
-    "metadata": {
-      "dormant_days": 180,
-      "burst_window_hours": 48
-    }
-  },
-  "FR-DORMANT-01": {
-    "id": "FR-DORMANT-01",
-    "ring_type": "dormant_burst",
-    "severity": "high",
-    "name": "Dormant Account Burst 1",
-    "description": "Previously dormant accounts suddenly activated together",
-    "entities": [
-      "A-001022",
-      "A-003904",
-      "A-007837",
-      "A-005475",
-      "A-009016",
-      "A-004266",
-      "A-009491",
-      "A-002932"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-001022",
-        "A-003904",
-        "A-007837",
-        "A-005475",
-        "A-009016",
-        "A-004266",
-        "A-009491",
-        "A-002932"
-      ]
-    ],
-    "key_entities": [
-      "A-001022",
-      "A-003904"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 1049,
-    "created_at": "2026-05-12T23:22:19.913909",
-    "metadata": {
-      "dormant_days": 180,
-      "burst_window_hours": 48
-    }
-  },
-  "FR-BENEF-00": {
-    "id": "FR-BENEF-00",
-    "ring_type": "beneficial_ownership",
-    "severity": "high",
-    "name": "Beneficial Ownership Chain 0",
-    "description": "Hidden control chain with 4 intermediate companies",
-    "entities": [
-      "P-002181",
-      "C-002983",
-      "C-001987",
-      "C-003877",
-      "C-002704"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "P-002181",
-        "C-002983",
-        "C-001987",
-        "C-003877",
-        "C-002704"
-      ]
-    ],
-    "key_entities": [
-      "P-002181"
-    ],
-    "expected_questions": [
-      "Find ultimate beneficial owners of C-002704",
-      "Trace control chain from P-002181"
-    ],
-    "expected_graph_paths": [],
-    "creation_seed": 50,
-    "created_at": "2026-05-12T23:22:19.914345",
-    "metadata": {}
-  },
-  "FR-BENEF-01": {
-    "id": "FR-BENEF-01",
-    "ring_type": "beneficial_ownership",
-    "severity": "high",
-    "name": "Beneficial Ownership Chain 1",
-    "description": "Hidden control chain with 4 intermediate companies",
-    "entities": [
-      "P-005001",
-      "C-003434",
-      "C-003683",
-      "C-002846",
-      "C-000754"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "P-005001",
-        "C-003434",
-        "C-003683",
-        "C-002846",
-        "C-000754"
-      ]
-    ],
-    "key_entities": [
-      "P-005001"
-    ],
-    "expected_questions": [
-      "Find ultimate beneficial owners of C-000754",
-      "Trace control chain from P-005001"
-    ],
-    "expected_graph_paths": [],
-    "creation_seed": 1050,
-    "created_at": "2026-05-12T23:22:19.914735",
-    "metadata": {}
-  },
-  "FR-BENEF-02": {
-    "id": "FR-BENEF-02",
-    "ring_type": "beneficial_ownership",
-    "severity": "high",
-    "name": "Beneficial Ownership Chain 2",
-    "description": "Hidden control chain with 5 intermediate companies",
-    "entities": [
-      "P-002740",
-      "C-001768",
-      "C-003106",
-      "C-002190",
-      "C-002902",
-      "C-003362"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "P-002740",
-        "C-001768",
-        "C-003106",
-        "C-002190",
-        "C-002902",
-        "C-003362"
-      ]
-    ],
-    "key_entities": [
-      "P-002740"
-    ],
-    "expected_questions": [
-      "Find ultimate beneficial owners of C-003362",
-      "Trace control chain from P-002740"
-    ],
-    "expected_graph_paths": [],
-    "creation_seed": 2050,
-    "created_at": "2026-05-12T23:22:19.915221",
-    "metadata": {}
-  },
-  "FR-TRAP-00": {
-    "id": "FR-TRAP-00",
-    "ring_type": "semantic_trap",
-    "severity": "medium",
-    "name": "Semantic Ambiguity Trap FR-TRAP-00",
-    "description": "Similar company names designed to confuse vector retrieval",
-    "entities": [
-      "C-000017",
-      "C-TRAP-0-0000",
-      "C-TRAP-0-0001",
-      "C-TRAP-0-0002",
-      "C-TRAP-0-0003",
-      "C-TRAP-0-0004",
-      "C-TRAP-0-0005",
-      "C-TRAP-0-0006",
-      "C-TRAP-0-0007",
-      "C-TRAP-0-0008",
-      "C-TRAP-0-0009",
-      "C-TRAP-0-0010",
-      "C-TRAP-0-0011",
-      "C-TRAP-0-0012",
-      "C-TRAP-0-0013",
-      "C-TRAP-0-0014",
-      "C-TRAP-0-0015",
-      "C-TRAP-0-0016",
-      "C-TRAP-0-0017",
-      "C-TRAP-0-0018",
-      "C-TRAP-0-0019",
-      "C-TRAP-0-0020",
-      "C-TRAP-0-0021",
-      "C-TRAP-0-0022",
-      "C-TRAP-0-0023",
-      "C-TRAP-0-0024",
-      "C-TRAP-0-0025",
-      "C-TRAP-0-0026",
-      "C-TRAP-0-0027",
-      "C-TRAP-0-0028",
-      "C-TRAP-0-0029",
-      "C-TRAP-0-0030",
-      "C-TRAP-0-0031",
-      "C-TRAP-0-0032",
-      "C-TRAP-0-0033",
-      "C-TRAP-0-0034",
-      "C-TRAP-0-0035",
-      "C-TRAP-0-0036",
-      "C-TRAP-0-0037",
-      "C-TRAP-0-0038",
-      "C-TRAP-0-0039",
-      "C-TRAP-0-0040",
-      "C-TRAP-0-0041",
-      "C-TRAP-0-0042",
-      "C-TRAP-0-0043",
-      "C-TRAP-0-0044",
-      "C-TRAP-0-0045",
-      "C-TRAP-0-0046",
-      "C-TRAP-0-0047",
-      "C-TRAP-0-0048",
-      "C-TRAP-0-0049",
-      "C-TRAP-0-0050",
-      "C-TRAP-0-0051",
-      "C-TRAP-0-0052",
-      "C-TRAP-0-0053",
-      "C-TRAP-0-0054",
-      "C-TRAP-0-0055",
-      "C-TRAP-0-0056",
-      "C-TRAP-0-0057",
-      "C-TRAP-0-0058",
-      "C-TRAP-0-0059",
-      "C-TRAP-0-0060",
-      "C-TRAP-0-0061",
-      "C-TRAP-0-0062",
-      "C-TRAP-0-0063",
-      "C-TRAP-0-0064",
-      "C-TRAP-0-0065",
-      "C-TRAP-0-0066",
-      "C-TRAP-0-0067",
-      "C-TRAP-0-0068",
-      "C-TRAP-0-0069",
-      "C-TRAP-0-0070",
-      "C-TRAP-0-0071",
-      "C-TRAP-0-0072",
-      "C-TRAP-0-0073",
-      "C-TRAP-0-0074",
-      "C-TRAP-0-0075",
-      "C-TRAP-0-0076",
-      "C-TRAP-0-0077",
-      "C-TRAP-0-0078",
-      "C-TRAP-0-0079",
-      "C-TRAP-0-0080",
-      "C-TRAP-0-0081",
-      "C-TRAP-0-0082",
-      "C-TRAP-0-0083",
-      "C-TRAP-0-0084",
-      "C-TRAP-0-0085",
-      "C-TRAP-0-0086",
-      "C-TRAP-0-0087",
-      "C-TRAP-0-0088",
-      "C-TRAP-0-0089",
-      "C-TRAP-0-0090",
-      "C-TRAP-0-0091",
-      "C-TRAP-0-0092",
-      "C-TRAP-0-0093",
-      "C-TRAP-0-0094",
-      "C-TRAP-0-0095",
-      "C-TRAP-0-0096",
-      "C-TRAP-0-0097",
-      "C-TRAP-0-0098",
-      "C-TRAP-0-0099"
-    ],
-    "edges": [],
-    "traversal_paths": [],
-    "key_entities": [
-      "C-000017"
-    ],
-    "expected_questions": [
-      "Which company is the actual member of this fraud ring?",
-      "Distinguish the real entity from similarly named noise"
-    ],
-    "expected_graph_paths": [],
-    "creation_seed": 51,
-    "created_at": "2026-05-12T23:22:19.915852",
-    "metadata": {
-      "real_entity": "C-000017",
-      "noise_entities": [
-        "C-TRAP-0-0000",
-        "C-TRAP-0-0001",
-        "C-TRAP-0-0002",
-        "C-TRAP-0-0003",
-        "C-TRAP-0-0004",
-        "C-TRAP-0-0005",
-        "C-TRAP-0-0006",
-        "C-TRAP-0-0007",
-        "C-TRAP-0-0008",
-        "C-TRAP-0-0009",
-        "C-TRAP-0-0010",
-        "C-TRAP-0-0011",
-        "C-TRAP-0-0012",
-        "C-TRAP-0-0013",
-        "C-TRAP-0-0014",
-        "C-TRAP-0-0015",
-        "C-TRAP-0-0016",
-        "C-TRAP-0-0017",
-        "C-TRAP-0-0018",
-        "C-TRAP-0-0019",
-        "C-TRAP-0-0020",
-        "C-TRAP-0-0021",
-        "C-TRAP-0-0022",
-        "C-TRAP-0-0023",
-        "C-TRAP-0-0024",
-        "C-TRAP-0-0025",
-        "C-TRAP-0-0026",
-        "C-TRAP-0-0027",
-        "C-TRAP-0-0028",
-        "C-TRAP-0-0029",
-        "C-TRAP-0-0030",
-        "C-TRAP-0-0031",
-        "C-TRAP-0-0032",
-        "C-TRAP-0-0033",
-        "C-TRAP-0-0034",
-        "C-TRAP-0-0035",
-        "C-TRAP-0-0036",
-        "C-TRAP-0-0037",
-        "C-TRAP-0-0038",
-        "C-TRAP-0-0039",
-        "C-TRAP-0-0040",
-        "C-TRAP-0-0041",
-        "C-TRAP-0-0042",
-        "C-TRAP-0-0043",
-        "C-TRAP-0-0044",
-        "C-TRAP-0-0045",
-        "C-TRAP-0-0046",
-        "C-TRAP-0-0047",
-        "C-TRAP-0-0048",
-        "C-TRAP-0-0049",
-        "C-TRAP-0-0050",
-        "C-TRAP-0-0051",
-        "C-TRAP-0-0052",
-        "C-TRAP-0-0053",
-        "C-TRAP-0-0054",
-        "C-TRAP-0-0055",
-        "C-TRAP-0-0056",
-        "C-TRAP-0-0057",
-        "C-TRAP-0-0058",
-        "C-TRAP-0-0059",
-        "C-TRAP-0-0060",
-        "C-TRAP-0-0061",
-        "C-TRAP-0-0062",
-        "C-TRAP-0-0063",
-        "C-TRAP-0-0064",
-        "C-TRAP-0-0065",
-        "C-TRAP-0-0066",
-        "C-TRAP-0-0067",
-        "C-TRAP-0-0068",
-        "C-TRAP-0-0069",
-        "C-TRAP-0-0070",
-        "C-TRAP-0-0071",
-        "C-TRAP-0-0072",
-        "C-TRAP-0-0073",
-        "C-TRAP-0-0074",
-        "C-TRAP-0-0075",
-        "C-TRAP-0-0076",
-        "C-TRAP-0-0077",
-        "C-TRAP-0-0078",
-        "C-TRAP-0-0079",
-        "C-TRAP-0-0080",
-        "C-TRAP-0-0081",
-        "C-TRAP-0-0082",
-        "C-TRAP-0-0083",
-        "C-TRAP-0-0084",
-        "C-TRAP-0-0085",
-        "C-TRAP-0-0086",
-        "C-TRAP-0-0087",
-        "C-TRAP-0-0088",
-        "C-TRAP-0-0089",
-        "C-TRAP-0-0090",
-        "C-TRAP-0-0091",
-        "C-TRAP-0-0092",
-        "C-TRAP-0-0093",
-        "C-TRAP-0-0094",
-        "C-TRAP-0-0095",
-        "C-TRAP-0-0096",
-        "C-TRAP-0-0097",
-        "C-TRAP-0-0098",
-        "C-TRAP-0-0099"
-      ],
-      "trap_type": "name_ambiguity"
-    }
-  },
-  "FR-HYBRID-00": {
-    "id": "FR-HYBRID-00",
-    "ring_type": "hybrid_network",
-    "severity": "critical",
-    "name": "Hybrid Multi-Ring Network 0",
-    "description": "Interconnected 4 fraud rings",
-    "entities": [
-      "C-003184",
-      "C-003666",
-      "C-001105"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "C-003184",
-        "C-003666",
-        "C-001105"
-      ]
-    ],
-    "key_entities": [
-      "C-003184",
-      "C-003666",
-      "C-001105"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 52,
-    "created_at": "2026-05-12T23:22:19.915987",
-    "metadata": {
-      "connected_rings": [
-        "FR-CIRC-01",
-        "FR-TRAP-00",
-        "FR-DORMANT-00",
-        "FR-ADDR-04"
-      ]
-    }
-  },
-  "FR-HYBRID-01": {
-    "id": "FR-HYBRID-01",
-    "ring_type": "hybrid_network",
-    "severity": "critical",
-    "name": "Hybrid Multi-Ring Network 1",
-    "description": "Interconnected 3 fraud rings",
-    "entities": [
-      "C-004214",
-      "C-004885",
-      "C-004699"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "C-004214",
-        "C-004885",
-        "C-004699"
-      ]
-    ],
-    "key_entities": [
-      "C-004214",
-      "C-004885",
-      "C-004699"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 1052,
-    "created_at": "2026-05-12T23:22:19.916038",
-    "metadata": {
-      "connected_rings": [
-        "FR-OFFSHORE-00",
-        "FR-BENEF-00",
-        "FR-FUNNEL-01"
-      ]
-    }
-  },
-  "FR-SPIKE-00": {
-    "id": "FR-SPIKE-00",
-    "ring_type": "temporal_spike",
-    "severity": "high",
-    "name": "Temporal Velocity Spike 0",
-    "description": "19 transfers within 2-hour window",
-    "entities": [
-      "A-003540",
-      "A-007480",
-      "A-008226",
-      "A-007909",
-      "A-008529",
-      "A-005910"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-003540",
-        "A-007480",
-        "A-008226",
-        "A-007909",
-        "A-008529",
-        "A-005910"
-      ]
-    ],
-    "key_entities": [
-      "A-003540",
-      "A-007480"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 53,
-    "created_at": "2026-05-12T23:22:19.916548",
-    "metadata": {
-      "transaction_count": 19,
-      "time_window_hours": 2
-    }
-  },
-  "FR-SPIKE-01": {
-    "id": "FR-SPIKE-01",
-    "ring_type": "temporal_spike",
-    "severity": "high",
-    "name": "Temporal Velocity Spike 1",
-    "description": "15 transfers within 2-hour window",
-    "entities": [
-      "A-005811",
-      "A-005910",
-      "A-003777",
-      "A-005723",
-      "A-006861",
-      "A-009725"
-    ],
-    "edges": [],
-    "traversal_paths": [
-      [
-        "A-005811",
-        "A-005910",
-        "A-003777",
-        "A-005723",
-        "A-006861",
-        "A-009725"
-      ]
-    ],
-    "key_entities": [
-      "A-005811",
-      "A-005910"
-    ],
-    "expected_questions": [],
-    "expected_graph_paths": [],
-    "creation_seed": 1053,
-    "created_at": "2026-05-12T23:22:19.916814",
-    "metadata": {
-      "transaction_count": 15,
-      "time_window_hours": 2
-    }
   }
 }

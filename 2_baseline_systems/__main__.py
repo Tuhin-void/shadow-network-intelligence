@@ -41,6 +41,9 @@ def cmd_benchmark(args):
             "chunk_size": args.chunk_size,
             "vector_provider": args.vector_provider,
             "graph_provider": args.graph_provider,
+            # Optional separate judge LLM for scientific fairness.
+            "judge_llm_provider": args.judge_llm,
+            "judge_llm_model":    args.judge_model,
         },
     )
 
@@ -202,6 +205,10 @@ def main():
     bench_parser.add_argument("--embedder-model", default=None)
     bench_parser.add_argument("--llm", default="ollama", choices=["ollama", "openai", "anthropic", "mock"])
     bench_parser.add_argument("--llm-model", default=None)
+    bench_parser.add_argument("--judge-llm", default=None, choices=["ollama", "openai", "anthropic", "mock", None],
+                              help="LLM provider for the judge (defaults to pipeline LLM — NOT recommended for fair scoring)")
+    bench_parser.add_argument("--judge-model", default=None,
+                              help="Model name for the judge LLM (use this together with --judge-llm)")
     bench_parser.add_argument("--top-k", type=int, default=10)
     bench_parser.add_argument("--chunk-size", type=int, default=500)
     bench_parser.add_argument("--graph-provider", default="mock", choices=["mock", "tigergraph"],

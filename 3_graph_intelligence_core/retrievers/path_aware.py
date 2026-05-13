@@ -29,42 +29,89 @@ class PathAwareRetriever:
         to_id: str,
         max_hops: int = 5,
     ) -> Optional[PathResult]:
-        """Find the shortest path between two entities."""
-        result = self.client.run_installed_query(
-            "tg_shortest_path",
-            {"from_id": from_id, "to_id": to_id, "max_hops": max_hops},
-        )
+        """
+        Find a path between two entities.
 
-        if "error" not in result or not result.get("results"):
-            path_vertices = []
-            path_edges = []
-            seen_ids = set()
-            frontier = [from_id]
-            seen_ids.add(from_id)
+        Fast path: installed GSQL query `tg_shortest_path` does a BFS in one
+        round-trip. Reports `distance` (or -1 if unreachable within max_hops).
+        Slow path: in-Python BFS via repeated `get_neighbors` calls.
+        """
+        # Resolve source/target types — required for VERTEX param binding.
+        infer = getattr(self.client, "_infer_vertex_type", lambda _: "")
+        from_type = infer(from_id) or "Person"
+        to_type   = infer(to_id) or "Person"
 
-            for _ in range(max_hops):
-                next_frontier = []
-                for fid in frontier:
-                    neighbors = self.client.get_neighbors(fid, limit=20)
-                    for n in neighbors.get("results", []):
-                        n_id = n.get("v_id") or n.get("id") or ""
-                        if n_id and n_id not in seen_ids:
-                            path_vertices.append(n_id)
-                            path_edges.append(n.get("edge_type", ""))
-                            seen_ids.add(n_id)
-                            next_frontier.append(n_id)
-                            if n_id == to_id:
-                                return PathResult(
-                                    path=[from_id] + path_vertices,
-                                    path_edges=path_edges,
-                                    path_length=len(path_vertices),
-                                    total_risk=sum(v.get("risk_score", 0) for v in path_vertices if isinstance(v, dict)),
-                                    entities=path_vertices,
-                                )
-                frontier = next_frontier
-                if not frontier:
-                    break
+        # ── Fast path: installed query ────────────────────────────────────
+        try:
+            qr = self.client._tg_conn.runInstalledQuery(
+                "tg_shortest_path",
+                {
+                    "src": (from_id, from_type),
+                    "tgt": (to_id,  to_type),
+                    "max_hops": max_hops,
+                },
+            )
+            distance = -1
+            target_attrs: dict = {}
+            for block in qr or []:
+                if not isinstance(block, dict):
+                    continue
+                if "distance" in block:
+                    try:
+                        d = block["distance"]
+                        if isinstance(d, list) and d:
+                            distance = int(d[0])
+                        elif isinstance(d, (int, float)):
+                            distance = int(d)
+                    except (ValueError, TypeError):
+                        pass
+                rt = block.get("reached_target") or []
+                if rt and isinstance(rt, list):
+                    target_attrs = (rt[0] or {}).get("attributes", {}) or {}
+            if distance > 0:
+                # Note: this is a distance-only result. We surface the endpoints
+                # + distance. Full path-edges list would need a separate query.
+                return PathResult(
+                    path=[from_id, to_id],
+                    path_edges=[],
+                    path_length=distance,
+                    total_risk=float(target_attrs.get("risk_score") or 0),
+                    entities=[{"v_id": to_id, "attributes": target_attrs}],
+                )
+        except Exception:
+            pass
 
+        # ── Slow path: in-Python BFS ──────────────────────────────────────
+        path_vertices: list[str] = []
+        path_edges: list[str] = []
+        seen_ids = {from_id}
+        frontier = [from_id]
+        for _ in range(max_hops):
+            next_frontier = []
+            for fid in frontier:
+                neighbors = self.client.get_neighbors(fid, limit=20)
+                for block in neighbors.get("results", []):
+                    if not (isinstance(block, dict) and "neighbors" in block):
+                        continue
+                    for n in block["neighbors"]:
+                        n_id = n.get("v_id") or ""
+                        if not n_id or n_id in seen_ids:
+                            continue
+                        path_vertices.append(n_id)
+                        path_edges.append(n.get("edge_type", ""))
+                        seen_ids.add(n_id)
+                        next_frontier.append(n_id)
+                        if n_id == to_id:
+                            return PathResult(
+                                path=[from_id] + path_vertices,
+                                path_edges=path_edges,
+                                path_length=len(path_vertices),
+                                total_risk=0.0,
+                                entities=[{"v_id": v} for v in path_vertices],
+                            )
+            frontier = next_frontier
+            if not frontier:
+                break
         return None
 
     def find_all_paths(

@@ -8,25 +8,29 @@ from enum import Enum
 
 
 class RelationshipType(Enum):
+    # Infrastructure
     OWNS = "owns"
+    HAS_ACCOUNT = "has_account"
     TRANSFERRED_TO = "transferred_to"
     LOCATED_AT = "located_at"
-    HAS_ACCOUNT = "has_account"
-    CONTROLS = "controls"
-    BENEFITS_FROM = "benefits_from"
-    REGISTERED_WITH = "registered_with"
     ASSOCIATED_WITH = "associated_with"
-    DIRECTOR_OF = "director_of"
-    BENEFICIAL_OWNER_OF = "beneficial_owner_of"
-    EMPLOYED_BY = "employed_by"
-    RELATED_TO = "related_to"
     USES_DEVICE = "uses_device"
     ACCESSED_FROM = "accessed_from"
     SENT_TRANSACTION = "sent_transaction"
     RECEIVED_TRANSACTION = "received_transaction"
     REGISTERED_AT = "registered_at"
+    BENEFITS_FROM = "benefits_from"
     SHARES_DEVICE_WITH = "shares_device_with"
     SHARES_ADDRESS_WITH = "shares_address_with"
+    CONTROLS = "controls"
+    DIRECTOR_OF = "director_of"
+    # Explicit ring membership (live schema)
+    PERSON_MEMBER_OF_RING = "person_member_of_ring"
+    COMPANY_MEMBER_OF_RING = "company_member_of_ring"
+    ACCOUNT_MEMBER_OF_RING = "account_member_of_ring"
+    TRANSACTION_MEMBER_OF_RING = "transaction_member_of_ring"
+    DEVICE_CONNECTED_TO_RING = "device_connected_to_ring"
+    ADDRESS_CONNECTED_TO_RING = "address_connected_to_ring"
 
 
 ENTITY_TYPES = ["PERSON", "COMPANY", "ACCOUNT", "ADDRESS", "DEVICE"]

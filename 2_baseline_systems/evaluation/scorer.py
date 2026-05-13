@@ -20,9 +20,25 @@ class BenchmarkScorer:
         entity_weight: float = 0.3,
         token_weight: float = 0.1,
         latency_weight: float = 0.1,
+        judge_llm_client: Optional[LLMClient] = None,
     ):
+        """
+        Args:
+            llm_client: LLM used by pipelines. Falls back to default.
+            judge_llm_client: SEPARATE LLM used as the judge. Recommended
+                to use a different provider/model than `llm_client` so the
+                evaluator doesn't share a bias with the pipelines. Falls
+                back to `llm_client` if not provided (logged warning).
+        """
         self.llm = llm_client or LLMClient()
-        self.judge = LLMJudge(self.llm)
+        judge_client = judge_llm_client or self.llm
+        if judge_llm_client is None:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "LLMJudge is using the same LLM as the pipelines — "
+                "results may be biased. Pass judge_llm_client for independence."
+            )
+        self.judge = LLMJudge(judge_client)
         self.entity_matcher = EntityMatcher()
         self.weights = {
             "llm_judge": judge_weight,

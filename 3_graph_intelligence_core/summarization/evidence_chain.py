@@ -11,7 +11,12 @@ class EvidenceChainBuilder:
     - Confidence scoring
     """
 
-    PRIORITY_EDGES = {"OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION", "PART_OF", "REGISTERED_AT"}
+    PRIORITY_EDGES = {
+        "OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION",
+        "TRANSFERRED_TO", "REGISTERED_AT", "BENEFITS_FROM",
+        "PERSON_MEMBER_OF_RING", "COMPANY_MEMBER_OF_RING",
+        "ACCOUNT_MEMBER_OF_RING", "TRANSACTION_MEMBER_OF_RING",
+    }
 
     def __init__(self):
         self.evidence_id = 0
@@ -37,8 +42,18 @@ class EvidenceChainBuilder:
                 seen_entity_names.add(name)
                 unique_entities.append(e)
 
+        # Pick the 2 most relevant entities as evidence:
+        #   - prefer high-risk (>= 0.5), since they're the smoking-gun candidates
+        #   - if none reach that bar, fall back to top-score (so an explanation
+        #     is always produced — the chain never silently goes empty)
         high_risk_entities = [e for e in unique_entities if (e.get("risk_score") or 0) >= 0.5]
-        high_risk_entities.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+        high_risk_entities.sort(key=lambda x: x.get("risk_score") or 0, reverse=True)
+        if not high_risk_entities and unique_entities:
+            high_risk_entities = sorted(
+                unique_entities,
+                key=lambda x: (x.get("score") or 0, x.get("risk_score") or 0),
+                reverse=True,
+            )
 
         for e in high_risk_entities[:2]:
             self.evidence_id += 1
@@ -61,15 +76,15 @@ class EvidenceChainBuilder:
         seen_conn_keys = set()
         unique_context = []
         for n in context:
-            key = (n.get("name", n.get("v_id", "")), n.get("edge", ""))
+            key = (n.get("name") or n.get("v_id", ""), n.get("edge", ""))
             if key not in seen_conn_keys:
                 seen_conn_keys.add(key)
                 unique_context.append(n)
 
         priority_edges = [n for n in unique_context if n.get("edge", "") in self.PRIORITY_EDGES]
-        priority_edges.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+        priority_edges.sort(key=lambda x: x.get("risk_score") or 0, reverse=True)
         other_edges = [n for n in unique_context if n.get("edge", "") not in self.PRIORITY_EDGES]
-        other_edges.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+        other_edges.sort(key=lambda x: x.get("risk_score") or 0, reverse=True)
 
         key_relationships = priority_edges[:3]
         if len(key_relationships) < 3:
@@ -81,7 +96,7 @@ class EvidenceChainBuilder:
                 "id": f"E{self.evidence_id:04d}",
                 "type": "relationship",
                 "source": "graph",
-                "content": f"{n.get('type', '?')}: {n.get('name', n.get('v_id', '?'))} via {n.get('edge', '?')}",
+                "content": f"{n.get('type', '?')}: {n.get('name') or n.get('v_id', '?')} via {n.get('edge', '?')}",
                 "strength": 0.6 if n.get("depth", 0) <= 2 else 0.4,
                 "provenance": {
                     "v_id": n.get("v_id", ""),

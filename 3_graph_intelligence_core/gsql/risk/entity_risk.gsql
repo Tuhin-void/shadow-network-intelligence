@@ -4,12 +4,20 @@ CREATE QUERY tg_entity_risk(STRING entity_id) FOR GRAPH ShadowGraph {
   entity = {Person.*, Company.*, Account.*} WHERE vertex.primary_id == entity_id;
   PRINT entity.primary_id, entity.name, entity.risk_score, entity.tags;
 
-  accounts = SELECT a FROM entity-(:LINKED_TO_ACCOUNT|:OWNS|:ACCOUNT_OF)-Account:a
+  -- Use HAS_ACCOUNT (live schema — replaces LINKED_TO_ACCOUNT)
+  accounts = SELECT a FROM entity -(:HAS_ACCOUNT|:OWNS)-> Account:a
     POST-ACCUM a.risk_score;
   PRINT accounts;
 
-  transactions = SELECT t FROM accounts-(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-Transaction:t
+  transactions = SELECT t FROM accounts -(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-> Transaction:t
     POST-ACCUM AVG(t.risk_score) AS avg_tx_risk;
   PRINT transactions.size() AS tx_count;
+
+  -- Ring membership (explicit per-type)
+  p_rings = SELECT r FROM entity:p -(:PERSON_MEMBER_OF_RING)->  FraudRing:r WHERE p.type == "Person";
+  c_rings = SELECT r FROM entity:c -(:COMPANY_MEMBER_OF_RING)-> FraudRing:r WHERE c.type == "Company";
+  a_rings = SELECT r FROM accounts  -(:ACCOUNT_MEMBER_OF_RING)-> FraudRing:r;
+  all_rings = p_rings UNION c_rings UNION a_rings;
+  PRINT all_rings.size() AS ring_count;
 }
 INSTALL QUERY tg_entity_risk

@@ -86,11 +86,25 @@ def cmd_load(args) -> int:
     from ingestion.loader import GraphLoader
     from configs.config import load_config
 
+    # Live progress: force unbuffered stdout/stderr.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+    except Exception:
+        pass
+
     config = load_config(args.config)
+    batch_size = args.batch_size or config.ingestion.batch_size
     client = GraphClient(config)
-    loader = GraphLoader(client, batch_size=config.ingestion.batch_size)
-    result = loader.load_profile(profile=args.profile, source_dir=config.data.source_dir)
-    print(f"Load complete: {result}")
+    loader = GraphLoader(client, batch_size=batch_size)
+    result = loader.load_profile(
+        profile=args.profile,
+        source_dir=config.data.source_dir,
+        sample_limit=args.sample,
+    )
+    print(f"Load complete: success={result.get('success')} "
+          f"vertices={sum(result.get('vertices', {}).values())} "
+          f"edges={sum(result.get('edges', {}).values())}")
     return 0 if result.get("success") else 1
 
 
@@ -173,6 +187,10 @@ def main() -> int:
 
     p = sub.add_parser("load", help="Load CSV data into TigerGraph")
     p.add_argument("profile", help="Data profile (small, medium, hackathon_default)")
+    p.add_argument("--sample", type=int, default=None,
+                   help="Truncate every CSV to this many rows (smoke-test mode)")
+    p.add_argument("--batch-size", type=int, default=None,
+                   help="Override config batch_size for upsert calls")
 
     p = sub.add_parser("stats", help="Show graph statistics")
 

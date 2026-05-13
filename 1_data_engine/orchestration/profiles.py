@@ -90,7 +90,9 @@ PROFILES: Dict[str, GenerationConfig] = {
         device_count=150,
         transaction_count=5000,
         edge_target=15000,
-        fraud_ring_count=3,
+        # Enough rings to make ring-identification queries visibly answerable
+        # in the demo without bloating the small profile.
+        fraud_ring_count=15,
         document_count=500,
         min_tokens=10000,
         max_tokens=50000,

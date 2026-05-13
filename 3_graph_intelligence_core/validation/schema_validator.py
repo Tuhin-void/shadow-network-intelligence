@@ -6,23 +6,26 @@ logger = logging.getLogger(__name__)
 
 
 class SchemaValidator:
-    """
-    Validates that a TigerGraph graph has the canonical ShadowGraph schema.
-    """
+    """Validates that a live TigerGraph graph matches the canonical ShadowGraph schema."""
 
-    CANONICAL_VERTEX_TYPES = ["Person", "Company", "Account", "Address", "Device", "Transaction"]
+    CANONICAL_VERTEX_TYPES = [
+        "Person", "Company", "Account", "Address", "Device", "Transaction", "FraudRing",
+    ]
+
     CANONICAL_EDGE_TYPES = [
-        "KNOWS", "EMPLOYED_BY", "OWNS", "RELATED_TO",
-        "SENT_TRANSACTION", "RECEIVED_TRANSACTION", "LINKED_TO_ACCOUNT",
-        "RESIDES_AT", "REGISTERED_AT", "LOCATED_AT", "USED_DEVICE",
-        "PART_OF", "CONNECTED_TO",
+        # Infrastructure
+        "OWNS", "HAS_ACCOUNT", "TRANSFERRED_TO", "LOCATED_AT", "ASSOCIATED_WITH",
+        "USES_DEVICE", "ACCESSED_FROM", "SENT_TRANSACTION", "RECEIVED_TRANSACTION",
+        "REGISTERED_AT", "BENEFITS_FROM", "SHARES_DEVICE_WITH", "SHARES_ADDRESS_WITH",
+        # Explicit ring membership
+        "PERSON_MEMBER_OF_RING", "COMPANY_MEMBER_OF_RING", "ACCOUNT_MEMBER_OF_RING",
+        "TRANSACTION_MEMBER_OF_RING", "DEVICE_CONNECTED_TO_RING", "ADDRESS_CONNECTED_TO_RING",
     ]
 
     def __init__(self, graph_client: "GraphClient"):
         self.client = graph_client
 
     def validate(self) -> "ValidationReport":
-        """Run full schema validation."""
         report = ValidationReport()
 
         try:
@@ -35,61 +38,38 @@ class SchemaValidator:
             report.add_error(f"Connection failed: {e}")
             return report
 
+        # Validate vertices via pyTigerGraph
         try:
-            vertex_types = self._get_vertex_types()
-            missing_vertices = set(self.CANONICAL_VERTEX_TYPES) - set(vertex_types)
-            if missing_vertices:
-                report.add_error(f"Missing vertex types: {missing_vertices}")
+            live_vtypes = self.client._tg_conn.getVertexTypes() if self.client._tg_conn else []
+            missing_v = set(self.CANONICAL_VERTEX_TYPES) - set(live_vtypes)
+            if missing_v:
+                report.add_error(f"Missing vertex types: {sorted(missing_v)}")
             else:
-                report.add_success(f"All {len(vertex_types)} vertex types present")
-            report.found_vertex_types = vertex_types
+                report.add_success(f"All {len(self.CANONICAL_VERTEX_TYPES)} vertex types present: {live_vtypes}")
+            report.found_vertex_types = list(live_vtypes)
         except Exception as e:
             report.add_error(f"Failed to read vertex types: {e}")
 
+        # Validate edges via pyTigerGraph
         try:
-            edge_types = self._get_edge_types()
-            missing_edges = set(self.CANONICAL_EDGE_TYPES) - set(edge_types)
-            if missing_edges:
-                report.add_error(f"Missing edge types: {missing_edges}")
+            live_etypes = self.client._tg_conn.getEdgeTypes() if self.client._tg_conn else []
+            live_edge_names = [e if isinstance(e, str) else e.get("Name", "") for e in live_etypes]
+            missing_e = set(self.CANONICAL_EDGE_TYPES) - set(live_edge_names)
+            if missing_e:
+                report.add_error(f"Missing edge types: {sorted(missing_e)}")
             else:
-                report.add_success(f"All {len(edge_types)} edge types present")
-            report.found_edge_types = edge_types
+                report.add_success(f"All {len(self.CANONICAL_EDGE_TYPES)} edge types present")
+            report.found_edge_types = live_edge_names
         except Exception as e:
             report.add_error(f"Failed to read edge types: {e}")
 
         report.is_valid = len(report.errors) == 0
         return report
 
-    def _get_vertex_types(self) -> list[str]:
-        """Get list of vertex types from TigerGraph via REST API."""
-        url = f"{self.client._restpp_base}/gsqlserver/gsql/vertices"
-        resp = self.client._session.get(url, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            results = data.get("results", [])
-            if results:
-                vertices = results[0].get("@@vertexTypes", [])
-                return [v.get("name") for v in vertices if v.get("name")]
-        return []
-
-    def _get_edge_types(self) -> list[str]:
-        """Get list of edge types from TigerGraph via REST API."""
-        url = f"{self.client._restpp_base}/gsqlserver/gsql/edges"
-        resp = self.client._session.get(url, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            results = data.get("results", [])
-            if results:
-                edges = results[0].get("@@edgeTypes", [])
-                return [e.get("name") for e in edges if e.get("name")]
-        return []
-
     def is_valid(self) -> bool:
-        """Quick boolean check."""
         return self.validate().is_valid
 
     def get_schema_info(self) -> dict:
-        """Get current schema info as dict."""
         report = self.validate()
         return {
             "connection_ok": report.connection_ok,

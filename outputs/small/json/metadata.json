@@ -4,9 +4,11 @@
     "companies": 5000,
     "accounts": 10000,
     "addresses": 4000,
-    "transactions": 149980,
-    "edges": 160185,
-    "fraud_rings": 33
+    "devices": 150,
+    "transactions": 5074,
+    "edges": 31290,
+    "fraud_rings": 15,
+    "documents": 0
   },
-  "total_entities": 25000
+  "total_entities": 25150
 }
