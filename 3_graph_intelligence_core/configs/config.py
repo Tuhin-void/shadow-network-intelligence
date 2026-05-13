@@ -15,6 +15,7 @@ class TigerGraphConfig:
     password: str = "tigergraph"
     use_ssl: bool = True
     secret: str = ""
+    deployment: str = "cloud"  # "cloud" or "enterprise"
 
     @property
     def restpp_url(self) -> str:
@@ -119,6 +120,8 @@ def load_config(config_path: Optional[str] = None) -> Config:
         tg_cfg.secret = os.environ["TIGERGRAPH_SECRET"]
     if os.environ.get("TIGERGRAPH_RESTPP_PORT"):
         tg_cfg.restpp_port = int(os.environ["TIGERGRAPH_RESTPP_PORT"])
+    if os.environ.get("TIGERGRAPH_DEPLOYMENT"):
+        tg_cfg.deployment = os.environ["TIGERGRAPH_DEPLOYMENT"]
 
     nim_cfg = NIMConfig(**raw.get("nim", {}))
     if os.environ.get("NIM_API_KEY"):
