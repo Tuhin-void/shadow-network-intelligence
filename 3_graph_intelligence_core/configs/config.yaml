@@ -3,9 +3,10 @@ tigergraph:
   graph: "ShadowGraph"
   restpp_port: 443
   username: "brooonotagain@gmail.com"
-  password: "qd59a4h223njucsfaent1arkpm3irm3h"
+  password: ""
   use_ssl: true
-  secret: ""  # leave empty if using password auth
+  gsql_secret: ""  # Canonical: TIGERGRAPH_GSQL_SECRET
+  deployment: "cloud"
 
 nim:
   api_key: "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"

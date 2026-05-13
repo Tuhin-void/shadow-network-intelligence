@@ -5,6 +5,13 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 @dataclass
 class TigerGraphConfig:
@@ -14,7 +21,7 @@ class TigerGraphConfig:
     username: str = "tigergraph"
     password: str = "tigergraph"
     use_ssl: bool = True
-    secret: str = ""
+    gsql_secret: str = ""  # Canonical: TIGERGRAPH_GSQL_SECRET
     deployment: str = "cloud"  # "cloud" or "enterprise"
 
     @property
@@ -116,8 +123,8 @@ def load_config(config_path: Optional[str] = None) -> Config:
         tg_cfg.username = os.environ["TIGERGRAPH_USERNAME"]
     if os.environ.get("TIGERGRAPH_PASSWORD"):
         tg_cfg.password = os.environ["TIGERGRAPH_PASSWORD"]
-    if os.environ.get("TIGERGRAPH_SECRET"):
-        tg_cfg.secret = os.environ["TIGERGRAPH_SECRET"]
+    if os.environ.get("TIGERGRAPH_GSQL_SECRET"):
+        tg_cfg.gsql_secret = os.environ["TIGERGRAPH_GSQL_SECRET"]
     if os.environ.get("TIGERGRAPH_RESTPP_PORT"):
         tg_cfg.restpp_port = int(os.environ["TIGERGRAPH_RESTPP_PORT"])
     if os.environ.get("TIGERGRAPH_DEPLOYMENT"):

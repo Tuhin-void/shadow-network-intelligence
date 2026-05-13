@@ -1,17 +1,25 @@
 """
-GraphClient — TigerGraph Cloud v2 RESTPP client with offline fallback.
+GraphClient — TigerGraph Cloud client with offline fallback.
 
 Key features:
-- Token-based auth for TigerGraph Cloud Enterprise v2
+- Uses pyTigerGraph native authentication (gsqlSecret + tgCloud=True)
 - Automatic offline fallback when TigerGraph is unreachable
-- All CRUD operations via RESTPP
+- All CRUD operations via pyTigerGraph
 - GSQL query installation and execution
+
+Auth: Uses TIGERGRAPH_GSQL_SECRET with pyTigerGraph's built-in cloud auth.
 """
 import logging
 import time
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+try:
+    import pyTigerGraph as tg
+    PYTIGERGRAPH_AVAILABLE = True
+except ImportError:
+    PYTIGERGRAPH_AVAILABLE = False
 
 try:
     import requests
@@ -104,13 +112,13 @@ class OfflineFallback:
 
 class GraphClient:
     """
-    TigerGraph Cloud v2 REST client with offline fallback.
+    TigerGraph Cloud client using pyTigerGraph native authentication.
 
-    Auth model: 
-    - Cloud: Use RESTPP secret directly in requests
-    - Enterprise: Use password-based auth
+    Auth model:
+    - Cloud: Uses pyTigerGraph with gsqlSecret and tgCloud=True
+    - Enterprise: Uses username/password
     
-    Falls back to local dataset when TigerGraph returns 403 or is unreachable.
+    Falls back to local dataset when TigerGraph is unreachable.
     """
 
     KNOWN_VERTEX_TYPES = ["Person", "Company", "Account", "Address", "Device", "Transaction"]
@@ -125,38 +133,65 @@ class GraphClient:
         self.tg = config.tigergraph
         self.dataset = dataset
         self._is_cloud = self.tg.deployment == "cloud"
-
-        self._session = requests.Session()
-        self._session.headers.update({"Content-Type": "application/json"})
-
-        self._token: Optional[str] = None
-        self._restpp_base = f"{self.tg.host}:{self.tg.restpp_port}/restpp"
-
+        
+        self._tg_conn = None
         self._offline_fallback = OfflineFallback(dataset)
         self._offline_mode = False
 
-        # Cloud deployment: Try secret auth, fall back to offline if fails
-        # Enterprise deployment: use basic auth
-        if self._is_cloud:
-            if self.tg.secret:
-                logger.info(f"TigerGraph Cloud: attempting RESTPP access with secret")
-                # Try connectivity - if fails, use offline
-                if not self._test_cloud_connectivity():
-                    logger.warning("TigerGraph Cloud RESTPP not accessible - using offline fallback")
-                    self._enable_offline_mode()
-                    return
-                logger.info("TigerGraph Cloud RESTPP access successful!")
-            else:
-                logger.warning("TigerGraph Cloud deployment but no secret - using offline fallback")
-                self._enable_offline_mode()
-                return
+        # Initialize pyTigerGraph connection or fall back to offline
+        if PYTIGERGRAPH_AVAILABLE:
+            self._init_pyTigerGraph()
         else:
-            self._session.auth = (self.tg.username, self.tg.password)
-            self._session.headers["GSQL-Alias"] = "gsql"
+            logger.warning("pyTigerGraph not available - using offline fallback")
+            self._enable_offline_mode()
 
-            # Test connectivity - if fails, enable offline mode
-            if not self._test_connectivity():
+    def _init_pyTigerGraph(self) -> None:
+        """Initialize pyTigerGraph connection with native cloud auth."""
+        try:
+            if self._is_cloud and self.tg.gsql_secret:
+                logger.info(f"Connecting to TigerGraph Cloud with gsqlSecret (tgCloud=True)")
+                
+                self._tg_conn = tg.TigerGraphConnection(
+                    host=self.tg.host,
+                    graphname=self.tg.graph,
+                    gsqlSecret=self.tg.gsql_secret,
+                    tgCloud=True,
+                    sslPort=self.tg.restpp_port,
+                )
+                
+                # Verify connection - try echo endpoint first
+                try:
+                    echo_result = self._tg_conn.echo()
+                    logger.info(f"TigerGraph Cloud echo: {echo_result}")
+                except Exception as echo_err:
+                    logger.warning(f"Echo test failed: {echo_err}")
+                
+                # Try getting vertex types as verification
+                vertex_types = self._tg_conn.getVertexTypes()
+                logger.info(f"TigerGraph Cloud connected! Vertex types: {len(vertex_types)}")
+                
+            elif not self._is_cloud and self.tg.username and self.tg.password:
+                logger.info(f"Connecting to TigerGraph Enterprise with username/password")
+                
+                self._tg_conn = tg.TigerGraphConnection(
+                    host=self.tg.host,
+                    graphname=self.tg.graph,
+                    username=self.tg.username,
+                    password=self.tg.password,
+                    sslPort=self.tg.restpp_port,
+                )
+                
+                vertex_types = self._tg_conn.getVertexTypes()
+                logger.info(f"TigerGraph Enterprise connected! Vertex types: {len(vertex_types)}")
+                
+            else:
+                logger.warning("No valid TigerGraph credentials - using offline fallback")
                 self._enable_offline_mode()
+                
+        except Exception as e:
+            logger.error(f"pyTigerGraph connection failed: {type(e).__name__}: {e}")
+            logger.info("Falling back to offline mode")
+            self._enable_offline_mode()
 
     def _test_connectivity(self) -> bool:
         """Test if TigerGraph is reachable with current auth."""
@@ -237,7 +272,7 @@ class GraphClient:
             logger.warning("TigerGraph unreachable — switched to offline fallback mode")
 
     def health_check(self) -> dict:
-        """Comprehensive health check."""
+        """Comprehensive health check using pyTigerGraph."""
         result = {
             "restpp": not self._offline_mode,
             "gsql": not self._offline_mode,
@@ -252,40 +287,28 @@ class GraphClient:
         }
 
         if self._offline_mode:
-            result["healthy"] = True
-            result["vertex_counts"] = {"offline_fallback": True}
-            result["message"] = "Using offline fallback - TigerGraph Cloud RESTPP not programmatically accessible"
+            result["message"] = "Using offline fallback"
             return result
 
-        # If not offline, test actual connectivity
+        # Use pyTigerGraph connection
         start = time.time()
-        auth_params = self._build_auth_params()
-        
         try:
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/Person?limit=1"
-            if auth_params:
-                url += "&" + "&".join(f"{k}={v}" for k, v in auth_params.items())
-            
-            resp = self._session.get(url, timeout=15)
+            vertex_types = self._tg_conn.getVertexTypes()
             result["latency_ms"] = (time.time() - start) * 1000
-
-            if resp.status_code == 200:
-                result["restpp"] = True
-                result["graph"] = True
-                result["auth"] = True
-                data = resp.json()
-                result["api_version"] = data.get("version", {}).get("api", "v2")
-                result["healthy"] = True
-                result["vertex_counts"] = self.get_vertex_counts()
-            elif resp.status_code == 403:
-                result["auth"] = False
-                result["message"] = "403 Forbidden - check secret configuration"
-                self._enable_offline_mode()
-                result["offline_mode"] = True
-                result["healthy"] = True
-            else:
-                result["details"] = {"status": resp.status_code, "body": resp.text[:200]}
+            result["restpp"] = True
+            result["gsql"] = True
+            result["graph"] = True
+            result["auth"] = True
+            result["healthy"] = True
+            result["vertex_counts"] = {vt: "OK" for vt in vertex_types}
+            result["message"] = f"Connected to {self.tg.graph} with {len(vertex_types)} vertex types"
         except Exception as e:
+            result["latency_ms"] = (time.time() - start) * 1000
+            result["message"] = f"Connection failed: {e}"
+            result["details"] = {"error": str(e)}
+            self._enable_offline_mode()
+            result["offline_mode"] = True
+            result["healthy"] = True
             result["details"] = {"exception": str(e)}
             result["latency_ms"] = (time.time() - start) * 1000
 
@@ -356,29 +379,21 @@ class GraphClient:
         return counts
 
     def get_vertex(self, vertex_type: str, vertex_id: str) -> Optional[dict]:
-        """Get single vertex by type and ID."""
+        """Get single vertex by type and ID using pyTigerGraph."""
         if self._offline_mode:
             data = self._offline_fallback.get_vertex(vertex_id)
             return {"v_id": vertex_id, "type": vertex_type, "attributes": data or {}}
 
         try:
-            auth_params = self._build_auth_params()
-            auth_str = "&" + "&".join(f"{k}={v}" for k, v in auth_params.items()) if auth_params else ""
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}/{vertex_id}{auth_str}"
-            resp = self._session.get(url, timeout=15)
-            if resp.status_code == 200:
-                results = resp.json().get("results", [])
-                return results[0] if results else None
-            if resp.status_code == 403:
-                self._enable_offline_mode()
-                return self.get_vertex(vertex_type, vertex_id)
-            return None
+            result = self._tg_conn.getVerticesById(vertex_type, [vertex_id])
+            return result[0] if result else None
         except Exception as e:
             logger.error(f"get_vertex({vertex_type}/{vertex_id}) failed: {e}")
-            return None
+            self._enable_offline_mode()
+            return self.get_vertex(vertex_type, vertex_id)
 
     def get_vertices(self, vertex_type: str, limit: int = 100, where: str = "") -> list[dict]:
-        """Get vertices of a specific type."""
+        """Get vertices of a specific type using pyTigerGraph."""
         if self._offline_mode:
             results = []
             if vertex_type == "Person":
@@ -392,63 +407,32 @@ class GraphClient:
             return results
 
         try:
-            params = {"limit": limit}
-            if where:
-                params["where"] = where
-            
-            # Add auth params for cloud deployment
-            auth_params = self._build_auth_params()
-            if auth_params:
-                params.update(auth_params)
-
-            resp = self._session.get(
-                f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}",
-                params=params,
-                timeout=30,
-            )
-            if resp.status_code == 200:
-                return resp.json().get("results", [])
-            if resp.status_code == 403:
-                self._enable_offline_mode()
-                return self.get_vertices(vertex_type, limit, where)
-            return []
+            results = self._tg_conn.getVertices(vertex_type, limit=limit)
+            return results
         except Exception as e:
             logger.error(f"get_vertices({vertex_type}) failed: {e}")
-            return []
+            self._enable_offline_mode()
+            return self.get_vertices(vertex_type, limit, where)
 
     def get_neighbors(self, entity_id: str, vertex_type: str = "", edge_type: str = "", limit: int = 50, depth: int = 1) -> dict:
-        """Get neighbors of an entity."""
+        """Get neighbors of an entity using pyTigerGraph."""
         if self._offline_mode:
             neighbors = self._offline_fallback.get_neighbors(entity_id, limit)
             return {"results": [{"neighbors": neighbors}]}
 
-        params = {"limit": limit}
-        if depth > 1:
-            params["maxHops"] = depth
-        
-        # Add auth params for cloud deployment
-        auth_params = self._build_auth_params()
-        if auth_params:
-            params.update(auth_params)
-
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/neighbors/{entity_id}"
-        if vertex_type:
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}/{entity_id}/neighbors"
-
         try:
-            resp = self._session.get(url, params=params, timeout=15)
-            if resp.status_code == 200:
-                return resp.json()
-            if resp.status_code == 403:
-                self._enable_offline_mode()
-                return self.get_neighbors(entity_id, vertex_type, edge_type, limit, depth)
-            return {"error": f"HTTP {resp.status_code}"}
+            if vertex_type:
+                neighbors = self._tg_conn.getNeighbors(vertex_type, entity_id, limit=limit)
+            else:
+                neighbors = self._tg_conn.getNeighbors("Person", entity_id, limit=limit)
+            return {"results": [{"neighbors": neighbors}]}
         except Exception as e:
             logger.error(f"get_neighbors({entity_id}) failed: {e}")
-            return {"error": str(e)}
+            self._enable_offline_mode()
+            return self.get_neighbors(entity_id, vertex_type, edge_type, limit, depth)
 
     def get_edges(self, from_id: str, from_type: str = "", edge_type: str = "", limit: int = 100) -> list[dict]:
-        """Get edges from an entity."""
+        """Get edges from an entity using pyTigerGraph."""
         if self._offline_mode:
             edges = []
             for edge in self._offline_fallback._edge_index:
@@ -460,11 +444,8 @@ class GraphClient:
 
         try:
             from_vtype = from_type or "Person"
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_vtype}/{from_id}/{edge_type or '*'}"
-            resp = self._session.get(url, params={"limit": limit}, timeout=15)
-            if resp.status_code == 200:
-                return resp.json().get("results", [])
-            return []
+            edges = self._tg_conn.getEdges(from_vtype, from_id, edge_type or "*", limit=limit)
+            return edges
         except Exception as e:
             logger.error(f"get_edges failed: {e}")
             return []
@@ -574,26 +555,13 @@ class GraphClient:
             return {"error": str(e)}
 
     def run_installed_query(self, name: str, params: Optional[dict] = None) -> dict:
-        """Run an installed GSQL query."""
+        """Run an installed GSQL query using pyTigerGraph."""
         if self._offline_mode:
             return {"error": "offline_mode", "message": f"Query '{name}' skipped in offline mode"}
 
-        p = params or {}
-        
-        # Add auth params for cloud deployment
-        auth_params = self._build_auth_params()
-        p.update(auth_params)
-        
-        url = f"{self._restpp_base}/query/{self.tg.graph}/{name}"
-
         try:
-            resp = self._session.get(url, params=p, timeout=30)
-            if resp.status_code == 200:
-                return resp.json()
-            if resp.status_code == 403:
-                self._enable_offline_mode()
-                return {"error": "offline_mode", "message": f"Query '{name}' skipped in offline mode"}
-            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            result = self._tg_conn.runInstalledQuery(name, params=params or {})
+            return {"results": result}
         except Exception as e:
             logger.warning(f"Installed query '{name}' failed: {e}")
             return {"error": str(e)}
