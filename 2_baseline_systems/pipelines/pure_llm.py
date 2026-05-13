@@ -29,7 +29,7 @@ class PureLLMPipeline(BasePipeline):
         llm_client,
         token_tracker,
         data_loader,
-        inject_graph_summary: bool = True,
+        inject_graph_summary: bool = False,
     ):
         super().__init__(llm_client, token_tracker, data_loader)
         self.inject_graph_summary = inject_graph_summary

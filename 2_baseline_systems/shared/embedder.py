@@ -3,6 +3,7 @@ Unified embedder: Ollama / OpenAI / Mock / NIM.
 """
 import logging
 import hashlib
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,12 @@ class Embedder:
 
         if provider == "nim":
             import openai
+            nim_api_key = os.environ.get("NIM_API_KEY", "")
+            if not nim_api_key:
+                logger.warning("NIM_API_KEY not set, NIM embeddings will fail")
             self._nim_client = openai.OpenAI(
                 base_url="https://integrate.api.nvidia.com/v1",
-                api_key="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",
+                api_key=nim_api_key,
             )
             self._embedding_dim = 2048
 

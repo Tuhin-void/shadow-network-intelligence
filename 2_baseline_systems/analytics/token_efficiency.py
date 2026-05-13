@@ -11,7 +11,7 @@ class TokenEfficiencyAnalyzer:
 
         pll = results.get("pure_llm", [])
         vr = results.get("vector_rag", [])
-        gr = results.get("graphrag", [])
+        gr = results.get("graph_rag", [])
 
         pll_avg = self._avg_tokens(pll)
         vr_avg = self._avg_tokens(vr)
@@ -21,25 +21,25 @@ class TokenEfficiencyAnalyzer:
             "per_approach": {
                 "pure_llm": self._token_summary(pll),
                 "vector_rag": self._token_summary(vr),
-                "graphrag": self._token_summary(gr),
+                "graph_rag": self._token_summary(gr),
             },
             "comparisons": {},
         }
 
         if pll_avg > 0:
-            report["comparisons"]["graphrag_vs_pure_llm"] = {
+            report["comparisons"]["graph_rag_vs_pure_llm"] = {
                 "token_reduction_pct": round(((pll_avg - gr_avg) / pll_avg) * 100, 2) if gr_avg > 0 else 0,
                 "tokens_saved": pll_avg - gr_avg,
                 "pure_llm_avg": round(pll_avg, 2),
-                "graphrag_avg": round(gr_avg, 2),
+                "graph_rag_avg": round(gr_avg, 2),
             }
 
         if vr_avg > 0:
-            report["comparisons"]["graphrag_vs_vector_rag"] = {
+            report["comparisons"]["graph_rag_vs_vector_rag"] = {
                 "token_reduction_pct": round(((vr_avg - gr_avg) / vr_avg) * 100, 2) if gr_avg > 0 else 0,
                 "tokens_saved": vr_avg - gr_avg,
                 "vector_rag_avg": round(vr_avg, 2),
-                "graphrag_avg": round(gr_avg, 2),
+                "graph_rag_avg": round(gr_avg, 2),
             }
 
         total_pll = sum(r.get("total_tokens", 0) for r in pll)

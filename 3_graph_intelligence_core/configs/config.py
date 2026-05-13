@@ -1,4 +1,5 @@
 """Configuration loader for 3_graph_intelligence_core."""
+import os
 import yaml
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -106,7 +107,22 @@ def load_config(config_path: Optional[str] = None) -> Config:
         raw = yaml.safe_load(f)
 
     tg_cfg = TigerGraphConfig(**raw.get("tigergraph", {}))
+    if os.environ.get("TIGERGRAPH_HOST"):
+        tg_cfg.host = os.environ["TIGERGRAPH_HOST"]
+    if os.environ.get("TIGERGRAPH_GRAPH"):
+        tg_cfg.graph = os.environ["TIGERGRAPH_GRAPH"]
+    if os.environ.get("TIGERGRAPH_USERNAME"):
+        tg_cfg.username = os.environ["TIGERGRAPH_USERNAME"]
+    if os.environ.get("TIGERGRAPH_PASSWORD"):
+        tg_cfg.password = os.environ["TIGERGRAPH_PASSWORD"]
+    if os.environ.get("TIGERGRAPH_SECRET"):
+        tg_cfg.secret = os.environ["TIGERGRAPH_SECRET"]
+    if os.environ.get("TIGERGRAPH_RESTPP_PORT"):
+        tg_cfg.restpp_port = int(os.environ["TIGERGRAPH_RESTPP_PORT"])
+
     nim_cfg = NIMConfig(**raw.get("nim", {}))
+    if os.environ.get("NIM_API_KEY"):
+        nim_cfg.api_key = os.environ["NIM_API_KEY"]
     ollama_cfg = OllamaConfig(**raw.get("ollama", {}))
     data_cfg = DataConfig(**raw.get("data", {}))
     ingest_cfg = IngestionConfig(**raw.get("ingestion", {}))

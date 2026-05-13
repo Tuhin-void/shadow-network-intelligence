@@ -61,10 +61,8 @@ class SchemaValidator:
         return report
 
     def _get_vertex_types(self) -> list[str]:
-        """Get list of vertex types from TigerGraph."""
-        if self.client._pygt_conn:
-            return self.client._pygt_conn.getVertexTypes()
-        url = f"{self.client._restpp_base}/graph/{self.client.tg.graph}"
+        """Get list of vertex types from TigerGraph via REST API."""
+        url = f"{self.client._restpp_base}/gsqlserver/gsql/vertices"
         resp = self.client._session.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
@@ -75,10 +73,8 @@ class SchemaValidator:
         return []
 
     def _get_edge_types(self) -> list[str]:
-        """Get list of edge types from TigerGraph."""
-        if self.client._pygt_conn:
-            return self.client._pygt_conn.getEdgeTypes()
-        url = f"{self.client._restpp_base}/gsql/edges"
+        """Get list of edge types from TigerGraph via REST API."""
+        url = f"{self.client._restpp_base}/gsqlserver/gsql/edges"
         resp = self.client._session.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
