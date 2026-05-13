@@ -59,10 +59,14 @@ class OfflineFallback:
                 self._entity_index[eid] = {"type": "Transaction", "data": t}
 
         if hasattr(dataset, 'get_edges_for_entity'):
-            for eid in list(self._entity_index.keys())[:100]:
+            edge_set = set()
+            for eid in self._entity_index.keys():
                 edges = dataset.get_edges_for_entity(eid)
                 for edge in edges:
-                    self._edge_index.append({"from": edge.get("from_id", ""), "to": edge.get("to_id", ""), "type": edge.get("relationship", "")})
+                    edge_key = f"{edge.get('from_id', '')}|{edge.get('to_id', '')}|{edge.get('relationship', '')}"
+                    if edge_key not in edge_set:
+                        edge_set.add(edge_key)
+                        self._edge_index.append({"from": edge.get("from_id", ""), "to": edge.get("to_id", ""), "type": edge.get("relationship", "")})
 
         self._initialized = True
         logger.info(f"Offline fallback initialized: {len(self._entity_index)} entities, {len(self._edge_index)} edges")
