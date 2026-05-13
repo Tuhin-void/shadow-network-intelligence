@@ -1,0 +1,18 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_shell_cluster IF EXISTS
+CREATE QUERY tg_shell_cluster(FLOAT threshold DEFAULT 0.6, INT min_entities DEFAULT 3) FOR GRAPH ShadowGraph {
+  shell_companies = SELECT c FROM Company:c
+    WHERE c.is_shell == TRUE OR c.is_offshore == TRUE OR c.risk_score >= threshold
+    POST-ACCUM c.name, c.jurisdiction, c.risk_score;
+  PRINT shell_companies;
+
+  offshore_accounts = SELECT a FROM Account:a
+    WHERE a.is_offshore == TRUE OR a.risk_score >= threshold
+    POST-ACCUM a.account_number, a.bank_name, a.risk_score;
+  PRINT offshore_accounts;
+
+  linked = SELECT p FROM shell_companies-(:OWNS|:RELATED_TO)-Person:p
+    POST-ACCUM p.name, p.country;
+  PRINT linked;
+}
+INSTALL QUERY tg_shell_cluster

@@ -1,0 +1,16 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_fraud_ring IF EXISTS
+CREATE QUERY tg_fraud_ring(STRING entity_id, FLOAT threshold DEFAULT 0.7) FOR GRAPH ShadowGraph {
+  seed = {Person.*, Company.*, Account.*} WHERE vertex.primary_id == entity_id;
+  PRINT seed;
+
+  accounts = SELECT ac FROM seed-(:LINKED_TO_ACCOUNT|:OWNS)-Account:ac
+    POST-ACCUM ac.account_number, ac.risk_score, ac.is_offshore;
+  PRINT accounts;
+
+  transactions = SELECT t FROM accounts-(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-Transaction:t
+    WHERE t.risk_score >= threshold OR t.is_suspicious == TRUE
+    POST-ACCUM t.tx_hash, t.amount, t.timestamp;
+  PRINT transactions;
+}
+INSTALL QUERY tg_fraud_ring

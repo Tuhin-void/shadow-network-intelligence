@@ -1,0 +1,33 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_layering_chain IF EXISTS
+CREATE QUERY tg_layering_chain(STRING from_account, STRING to_account, INT min_hops DEFAULT 3, INT max_hops DEFAULT 7) FOR GRAPH ShadowGraph {
+  TYPEDEF TUPLE<INT depth, DOUBLE total_amount> chain_stats;
+
+  seed = {Account.*} WHERE vertex.account_number == from_account;
+  target = {Account.*} WHERE vertex.account_number == to_account;
+
+  IF seed.size() == 0 OR target.size() == 0 THEN
+    PRINT "Account not found" AS error;
+    RETURN;
+  END;
+
+  accounts = seed;
+  INT current_depth = 0;
+
+  WHILE accounts.size() > 0 AND current_depth < max_hops DO
+    current_depth = current_depth + 1;
+
+    IF current_depth >= min_hops THEN
+      paths = SELECT a FROM accounts-(:e)-Account:a
+        WHERE a IN target
+        POST-ACCUM @@result += chain_stats(current_depth, a.balance);
+    END;
+
+    accounts = SELECT DISTINCT a FROM accounts-(:e)-Account:a WHERE a NOT IN seed;
+    seed = accounts;
+  END;
+
+  PRINT "Layering chain analysis complete" AS status;
+  PRINT current_depth AS final_depth;
+}
+INSTALL QUERY tg_layering_chain

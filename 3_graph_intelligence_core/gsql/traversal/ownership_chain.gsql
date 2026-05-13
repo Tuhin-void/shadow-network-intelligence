@@ -1,0 +1,15 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_ownership_chain IF EXISTS
+CREATE QUERY tg_ownership_chain(STRING company_id, INT max_depth DEFAULT 4) FOR GRAPH ShadowGraph {
+  company = {Company.*} WHERE vertex.primary_id == company_id;
+  PRINT company.name, company.jurisdiction, company.industry, company.risk_score;
+
+  owners = SELECT p FROM company-(:OWNS)-Person:p
+    POST-ACCUM p.name, p.country, p.risk_score;
+  PRINT owners;
+
+  sub_companies = SELECT c FROM company-(:OWNS)-Company:c
+    POST-ACCUM c.name, c.jurisdiction, c.is_shell;
+  PRINT sub_companies;
+}
+INSTALL QUERY tg_ownership_chain

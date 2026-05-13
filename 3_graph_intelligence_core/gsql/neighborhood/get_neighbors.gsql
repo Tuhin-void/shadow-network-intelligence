@@ -1,0 +1,19 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_neighbors IF EXISTS
+CREATE QUERY tg_neighbors(STRING v_id, INT max_hops DEFAULT 2, INT limit DEFAULT 50) FOR GRAPH ShadowGraph {
+  TYPEDEF TUPLE<STRING v_type, STRING v_id, DOUBLE risk_score> entity;
+  HeapAccum<entity>(limit, risk_score DESC) @@result = HeapAccum<entity>();
+
+  start = {Person.*, Company.*, Account.*, Address.*, Device.*, Transaction.*}
+    WHERE vertex.attributes().contains(v_id) OR vertex.primary_id == v_id;
+
+  neighborhoods = SELECT s
+    FROM start-(:e)-:*:s
+    WHERE s != start
+    LIMIT limit;
+
+  @@result += SELECT s FROM neighborhoods s
+    POST-ACCUM
+      @@result += entity(s.type, s.primary_id, COALESCE(s.risk_score, 0.0));
+}
+INSTALL QUERY tg_neighbors

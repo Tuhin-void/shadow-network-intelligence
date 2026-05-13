@@ -1,0 +1,49 @@
+tigergraph:
+  host: "https://tg-6937a943-57ef-4bc3-88b0-3bce0d9a3290.tg-2635877100.i.tgcloud.io"
+  graph: "ShadowGraph"
+  restpp_port: 443
+  username: "brooonotagain@gmail.com"
+  password: "qd59a4h223njucsfaent1arkpm3irm3h"
+  use_ssl: true
+  secret: ""  # leave empty if using password auth
+
+nim:
+  api_key: "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"
+  base_url: "https://integrate.api.nvidia.com/v1"
+  llm_model: "nvidia/llama-3.1-nemotron-70b-instruct"
+  embedding_model: "nvidia/llama-3.1-nemotron-70b-instruct"
+
+ollama:
+  base_url: "http://localhost:11434"
+  llm_model: "llama3.2"
+  embedding_model: "nomic-embed-text"
+
+data:
+  source_dir: "outputs"
+  profiles:
+    - "small"
+    - "medium"
+    - "hackathon_default"
+
+ingestion:
+  batch_size: 5000
+  parallel_batches: 4
+  upsert_mode: true
+  validate_schema: true
+
+graphrag:
+  traversal_depth: 3
+  top_k: 10
+  max_context_tokens: 8000
+  compression: "rule_based"
+  provider: "nim"
+
+cache:
+  enabled: true
+  traversal_ttl_seconds: 300
+  neighborhood_ttl_seconds: 600
+  subgraph_ttl_seconds: 900
+
+logging:
+  level: "INFO"
+  trace_retrieval: true

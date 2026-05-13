@@ -1,0 +1,33 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_shortest_path IF EXISTS
+CREATE QUERY tg_shortest_path(STRING from_id, STRING to_id, INT max_hops DEFAULT 5) FOR GRAPH ShadowGraph {
+  OrAccum @visited = FALSE;
+  ListAccum<STRING> @path;
+  MinAccum<INT> @dist;
+
+  start = {Person.*, Company.*, Account.*, Device.*}
+    WHERE vertex.primary_id == from_id;
+
+  target = {Person.*, Company.*, Account.*, Device.*}
+    WHERE vertex.primary_id == to_id;
+
+  IF start.size() > 0 AND target.size() > 0 THEN
+    start.attr("distance", 0);
+    start.@visited = TRUE;
+
+    WHILE start.size() > 0 LIMIT 100 DO
+      start = SELECT s FROM start-(:e)-:*:s
+        WHERE s.@visited == FALSE AND s.@dist < max_hops
+        POST-ACCUM
+          s.@visited = TRUE,
+          s.@dist = start.@dist + 1;
+      IF target.size() > 0 THEN
+        BREAK;
+      END;
+    END;
+  END;
+
+  result = target;
+  PRINT result;
+}
+INSTALL QUERY tg_shortest_path

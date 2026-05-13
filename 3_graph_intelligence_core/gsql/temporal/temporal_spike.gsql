@@ -1,0 +1,15 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_temporal_spike IF EXISTS
+CREATE QUERY tg_temporal_spike(STRING account_id, INT window_hours DEFAULT 24) FOR GRAPH ShadowGraph {
+  account = {Account.*} WHERE vertex.primary_id == account_id;
+  PRINT account.account_number, account.risk_score;
+
+  sent = SELECT t FROM account-(:SENT_TRANSACTION)->Transaction:t
+    POST-ACCUM t.tx_hash, t.amount, t.timestamp;
+  PRINT sent.size() AS sent_count;
+
+  received = SELECT t FROM account<-(:RECEIVED_TRANSACTION)-Transaction:t
+    POST-ACCUM t.tx_hash, t.amount, t.timestamp;
+  PRINT received.size() AS received_count;
+}
+INSTALL QUERY tg_temporal_spike

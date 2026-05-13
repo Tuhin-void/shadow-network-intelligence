@@ -1,0 +1,11 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_entity_profile IF EXISTS
+CREATE QUERY tg_entity_profile(STRING v_id) FOR GRAPH ShadowGraph {
+  Print("=== Entity Profile ===");
+  results = {Person.*, Company.*, Account.*, Device.*, Transaction.*}
+    WHERE vertex.primary_id == v_id;
+  PRINT results;
+  neighborhood = SELECT s FROM results-(:e)-:*:s LIMIT 200;
+  PRINT neighborhood;
+}
+INSTALL QUERY tg_entity_profile

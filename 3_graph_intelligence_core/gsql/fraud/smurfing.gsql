@@ -1,0 +1,16 @@
+USE GRAPH ShadowGraph
+DROP QUERY tg_smurfing IF EXISTS
+CREATE QUERY tg_smurfing(STRING account_id, FLOAT threshold DEFAULT 10000) FOR GRAPH ShadowGraph {
+  account = {Account.*} WHERE vertex.primary_id == account_id;
+  PRINT account;
+
+  incoming = SELECT t FROM account<-(:RECEIVED_TRANSACTION)-Transaction:t
+    WHERE t.amount < threshold
+    POST-ACCUM t.tx_hash, t.amount, t.timestamp, t.from_account;
+  PRINT incoming.size() AS small_tx_count, incoming;
+
+  outgoing = SELECT t FROM account-(:SENT_TRANSACTION)->Transaction:t
+    POST-ACCUM t.tx_hash, t.amount, t.timestamp, t.to_account;
+  PRINT outgoing.size() AS outgoing_count, outgoing;
+}
+INSTALL QUERY tg_smurfing
