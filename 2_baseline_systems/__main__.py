@@ -33,13 +33,14 @@ def cmd_benchmark(args):
     runner = BenchmarkRunner(
         profile=args.profile,
         config={
-            "embedder_provider": "mock",
+            "embedder_provider": args.embedder,
             "embedder_model": args.embedder_model or "nomic-embed-text",
             "llm_provider": "mock",
             "llm_model": args.llm_model or "llama3.2",
             "top_k": args.top_k,
             "chunk_size": args.chunk_size,
-            "vector_provider": "mock",
+            "vector_provider": args.vector_provider,
+            "graph_provider": args.graph_provider,
         },
     )
 
@@ -197,12 +198,16 @@ def main():
                               help="Pipelines to run")
     bench_parser.add_argument("--limit", type=int, default=0, help="Limit number of queries")
     bench_parser.add_argument("--output", type=str, default=None, help="Output directory")
-    bench_parser.add_argument("--embedder", default="ollama", choices=["ollama", "openai", "mock"])
+    bench_parser.add_argument("--embedder", default="nim", choices=["ollama", "openai", "mock", "nim"])
     bench_parser.add_argument("--embedder-model", default=None)
     bench_parser.add_argument("--llm", default="ollama", choices=["ollama", "openai", "anthropic", "mock"])
     bench_parser.add_argument("--llm-model", default=None)
     bench_parser.add_argument("--top-k", type=int, default=10)
     bench_parser.add_argument("--chunk-size", type=int, default=500)
+    bench_parser.add_argument("--graph-provider", default="mock", choices=["mock", "tigergraph"],
+                              help="Graph retriever provider for graph_rag pipeline")
+    bench_parser.add_argument("--vector-provider", default="chroma", choices=["chroma", "mock"],
+                              help="Vector store provider for vector_rag pipeline")
     bench_parser.add_argument("--generate-report", action="store_true", help="Generate benchmark report")
 
     data_parser = subparsers.add_parser("data", help="Load and inspect data from 1_data_engine")

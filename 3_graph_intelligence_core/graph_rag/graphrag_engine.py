@@ -192,12 +192,17 @@ class GraphRAGEngine:
         query: str,
         compression: str,
     ) -> dict:
-        """Compress retrieval results."""
+        """Compress retrieval results using GraphAwareSummarizer (max 250 tokens)."""
+        evidence_chain = self.evidence_builder.build_chain(retrieval_result, query)
+
         if compression == "llm" and self.llm_summarizer:
             summary = self.llm_summarizer.summarize(retrieval_result, query)
-            return {"summary": summary, "type": "llm", "compression": compression}
+            return {"summary": summary, "type": "llm", "compression": compression, "evidence_count": len(evidence_chain)}
         else:
-            return self.rule_summarizer.compress_retrieval(retrieval_result, budget_tokens=2000)
+            compressed = self.rule_summarizer.compress_retrieval(retrieval_result, budget_tokens=250)
+            compressed["type"] = "compressed"
+            compressed["evidence_count"] = len(evidence_chain)
+            return compressed
 
     def _build_profiles(self, entity_ids: list[str]) -> list[dict]:
         profiles = []

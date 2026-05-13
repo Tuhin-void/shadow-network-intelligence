@@ -15,6 +15,10 @@ Commands:
 """
 import sys
 import argparse
+from pathlib import Path
+
+_MOD_DIR = Path(__file__).parent
+sys.path.insert(0, str(_MOD_DIR))
 
 
 def cmd_health(args) -> int:
@@ -22,12 +26,31 @@ def cmd_health(args) -> int:
     from configs.config import load_config
 
     config = load_config(args.config)
-    client = GraphClient(config)
+    dataset = None
+    if args.profile:
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(Path(__file__).parent.parent / "2_baseline_systems"))
+            from shared.data_loader import AdaptiveDataLoader
+            loader = AdaptiveDataLoader(args.profile)
+            dataset = loader.load()
+            print(f"  Loaded dataset: {len(dataset.persons)} persons", file=sys.stderr)
+        except Exception as e:
+            print(f"  Failed to load dataset: {e}", file=sys.stderr)
+
+    client = GraphClient(config, dataset=dataset)
     health = client.health_check()
 
     print(f"TigerGraph Health Check:")
+    print(f"  Mode: {'OFFLINE (fallback)' if health.get('offline_mode') else 'LIVE'}")
+    print(f"  Latency: {health.get('latency_ms', 0):.1f}ms")
+    if health.get("offline_mode"):
+        print(f"  Reason: TigerGraph Cloud requires token auth — using local dataset fallback")
+        print(f"  Local entities: {len(client._offline_fallback._entity_index)}")
     for k, v in health.items():
-        status = "✓" if isinstance(v, bool) and v else "✗" if k != "healthy" else "✓"
+        if k in ("details", "vertex_counts"):
+            continue
+        status = "✓" if isinstance(v, bool) and v else "?"
         print(f"  {status} {k}: {v}")
     return 0 if health.get("healthy") else 1
 
@@ -142,6 +165,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("health", help="Check TigerGraph connectivity")
+    p.add_argument("--profile", default=None, help="Data profile for offline fallback (small, medium, hackathon_default)")
     p = sub.add_parser("validate", help="Validate ShadowGraph schema")
     p = sub.add_parser("setup", help="Create schema and install queries")
     p.add_argument("--dry-run", action="store_true", help="Dry run mode")

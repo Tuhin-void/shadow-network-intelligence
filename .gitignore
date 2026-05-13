@@ -113,3 +113,27 @@ generated_reports/
 # ----------------------------
 benchmark_results.json
 *.benchmark
+outputs/
+1_data_engine/outputs/
+2_baseline_systems/outputs/
+8_dashboard_ui/node_modules/
+*.json
+configs/server_config.json
+3_graph_intelligence_core/db/
+
+# Data outputs
+outputs/
+1_data_engine/outputs/
+2_baseline_systems/outputs/
+3_graph_intelligence_core/db/
+
+# Dashboard
+8_dashboard_ui/node_modules/
+
+# Large JSON files
+configs/server_config.json
+
+# ChromaDB
+*.bin
+*.parquet
+

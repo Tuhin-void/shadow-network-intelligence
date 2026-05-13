@@ -2,14 +2,15 @@
 from typing import Optional
 
 
-class RuleBasedSummarizer:
+class GraphAwareSummarizer:
     """
-    Compresses graph retrieval results using deterministic rules.
-    - Entity prioritization by risk score and relevance
-    - Relationship extraction and categorization
-    - Key fact distillation
-    - Context window budget management
+    Compresses graph retrieval results into compact output (max 250 tokens).
+    - Entity prioritization by risk score (>= 0.5 high risk)
+    - Relationship pattern extraction (OWNS, SENT_TRANSACTION, etc.)
+    - Strict single paragraph or bulleted list format
     """
+
+    PRIORITY_EDGES = {"OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION", "PART_OF", "REGISTERED_AT"}
 
     def __init__(self, max_tokens: int = 8000):
         self.max_tokens = max_tokens
@@ -19,104 +20,100 @@ class RuleBasedSummarizer:
         self,
         retrieval_result: dict,
         query: str = "",
-        max_output_tokens: int = 2000,
+        max_output_tokens: int = 250,
     ) -> str:
         """
-        Summarize graph retrieval results into a compact context.
+        Summarize graph retrieval results into compact context (max 250 tokens).
         """
         if not retrieval_result:
             return "No graph data available."
 
-        chunks = []
-
         entities = retrieval_result.get("entities", [])
-        if entities:
-            chunk = self._summarize_entities(entities, query)
-            chunks.append(chunk)
-
         context = retrieval_result.get("context", [])
-        if context:
-            chunk = self._summarize_neighborhood(context)
-            chunks.append(chunk)
 
-        paths = retrieval_result.get("paths", [])
-        if paths:
-            chunk = self._summarize_paths(paths)
-            chunks.append(chunk)
-
-        communities = retrieval_result.get("communities", [])
-        if communities:
-            chunk = self._summarize_communities(communities)
-            chunks.append(chunk)
-
-        combined = "\n\n".join(chunks)
-        return self._truncate(combined, max_output_tokens)
-
-    def _summarize_entities(self, entities: list[dict], query: str) -> str:
-        if not entities:
-            return ""
-        lines = ["### Relevant Entities"]
-        for e in entities[:10]:
-            vtype = e.get("type", "unknown")
+        seen_entity_names = set()
+        unique_entities = []
+        for e in entities:
             name = e.get("name", e.get("v_id", ""))
-            score = e.get("score", 0)
-            risk = e.get("risk_score") or e.get("risk", "")
-            risk_str = f" [RISK: {risk:.2f}]" if risk else ""
+            if name not in seen_entity_names:
+                seen_entity_names.add(name)
+                unique_entities.append(e)
 
-            lines.append(f"- {vtype}: {name} (relevance={score:.2f}){risk_str}")
+        high_risk_entities = [e for e in unique_entities if (e.get("risk_score") or 0) >= 0.5]
+        high_risk_entities.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+        top_entities = high_risk_entities[:6]
 
-            attrs = e.get("attributes", {})
-            if attrs:
-                notable = []
-                for key in ("industry", "jurisdiction", "country", "currency", "account_type"):
-                    if key in attrs and attrs[key]:
-                        notable.append(f"{key}={attrs[key]}")
-                if notable:
-                    lines.append(f"  Attributes: {', '.join(notable)}")
-        return "\n".join(lines)
-
-    def _summarize_neighborhood(self, context: list[dict]) -> str:
-        if not context:
-            return ""
-        lines = ["### Graph Neighborhood"]
-        edge_counts = {}
-        type_counts = {}
-
+        seen_connection_keys = set()
+        unique_context = []
         for n in context:
-            et = n.get("edge", "unknown")
-            edge_counts[et] = edge_counts.get(et, 0) + 1
-            vt = n.get("type", "unknown")
-            type_counts[vt] = type_counts.get(vt, 0) + 1
+            key = (n.get("name", n.get("v_id", "")), n.get("edge", ""))
+            if key not in seen_connection_keys:
+                seen_connection_keys.add(key)
+                unique_context.append(n)
 
-        lines.append(f"Connected entities: {len(context)}")
-        lines.append(f"Entity types: {', '.join(f'{k}({v})' for k, v in type_counts.items())}")
-        lines.append(f"Edge types: {', '.join(f'{k}({v})' for k, v in edge_counts.items())}")
+        priority_edges = sorted(
+            [n for n in unique_context if n.get("edge", "") in self.PRIORITY_EDGES],
+            key=lambda x: x.get("risk_score", 0),
+            reverse=True,
+        )
+        other_edges = sorted(
+            [n for n in unique_context if n.get("edge", "") not in self.PRIORITY_EDGES],
+            key=lambda x: x.get("risk_score", 0),
+            reverse=True,
+        )
+        top_connections = (priority_edges + other_edges)[:6]
 
-        for n in context[:5]:
-            lines.append(f"- {n.get('type', '?')}: {n.get('name', n.get('v_id', '?'))} via {n.get('edge', '?')}")
+        entity_type_counts = {}
+        for e in entities:
+            t = e.get("type", "unknown")
+            entity_type_counts[t] = entity_type_counts.get(t, 0) + 1
 
-        return "\n".join(lines)
+        total_risk = 0
+        if entities:
+            total_risk = sum(e.get("risk_score", 0) or 0 for e in entities) / len(entities)
 
-    def _summarize_paths(self, paths: list[dict]) -> str:
-        if not paths:
-            return ""
-        lines = ["### Connection Paths"]
-        for p in paths[:5]:
-            path = p.get("path", [])
-            if path:
-                lines.append(f"Path ({p.get('length', len(path) - 1)} hops): {' -> '.join(path)}")
-        return "\n".join(lines)
+        risk_flags = set()
+        for e in entities:
+            attrs = e.get("attributes", {})
+            if attrs.get("is_suspicious"):
+                risk_flags.add("suspicious")
+            if attrs.get("is_enhanced"):
+                risk_flags.add("enhanced")
+            if attrs.get("high_volume"):
+                risk_flags.add("high_volume")
+            if attrs.get("offshore"):
+                risk_flags.add("offshore")
+            if attrs.get("shell_company"):
+                risk_flags.add("shell_company")
 
-    def _summarize_communities(self, communities: list[dict]) -> str:
-        if not communities:
-            return ""
-        lines = ["### Risk Communities"]
-        for c in communities[:5]:
-            rid = c.get("v_id", c.get("id", "?"))
-            rtype = c.get("type", c.get("cluster_type", "?"))
-            risk = c.get("risk_score", 0)
-            lines.append(f"- {rtype}: {rid} [risk={risk:.2f}]")
-        return "\n".join(lines)
+        lines = ["GRAPH SUMMARY:"]
+        if top_entities:
+            entity_strs = [f"[{e.get('type', 'Entity')}:{e.get('name', e.get('v_id', '?'))}]" for e in top_entities]
+            lines.append(f"Entities: {', '.join(entity_strs)} ({len(entities)} total)")
+        else:
+            lines.append("Entities: None")
+
+        if risk_flags:
+            lines.append(f"Risk Flags: [{', '.join(sorted(risk_flags))}]")
+
+        if top_connections:
+            conn_strs = []
+            for n in top_connections:
+                src = n.get("type", "?")
+                edge = n.get("edge", "?")
+                tgt = n.get("name", n.get("v_id", "?"))
+                conn_strs.append(f"[{src}]--[{edge}]-->[{tgt}]")
+            lines.append(f"Connections: {', '.join(conn_strs)}")
+
+        if entity_type_counts:
+            type_summary = ", ".join(f"{k}({v})" for k, v in sorted(entity_type_counts.items()))
+            lines.append(f"Type Distribution: {type_summary}")
+
+        if total_risk > 0:
+            lines.append(f"Total Risk: {total_risk:.2f}")
+
+        combined = " ".join(lines)
+        return self._truncate(combined, max_output_tokens)
 
     def _truncate(self, text: str, max_chars: int) -> str:
         max_chars = max_chars * self.avg_chars_per_token
@@ -124,7 +121,7 @@ class RuleBasedSummarizer:
             return text
         return text[:max_chars] + "... [truncated]"
 
-    def compress_retrieval(self, raw_results: dict, budget_tokens: int = 2000) -> dict:
+    def compress_retrieval(self, raw_results: dict, budget_tokens: int = 250) -> dict:
         """
         Compress retrieval results to fit within a token budget.
         Returns compressed dict with entity and context summaries.
@@ -153,3 +150,8 @@ class RuleBasedSummarizer:
             facts.append(f"Found {len(entities)} relevant entities")
 
         return facts[:max_facts]
+
+
+class RuleBasedSummarizer(GraphAwareSummarizer):
+    """Backward compatibility wrapper."""
+    pass

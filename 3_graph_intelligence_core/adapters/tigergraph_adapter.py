@@ -101,7 +101,14 @@ def create_pipeline(
         pipeline = create_pipeline(llm, token_tracker, data_loader, graph_client)
         result = pipeline.answer("Show high risk accounts")
     """
-    from 2_baseline_systems.pipelines.graph_rag import GraphRAGPipeline
+    import importlib.util
+    spec = importlib.util.find_module("pipelines.graph_rag", "2_baseline_systems")
+    if spec is not None:
+        graph_rag_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(graph_rag_module)
+        GraphRAGPipeline = graph_rag_module.GraphRAGPipeline
+    else:
+        raise ImportError("2_baseline_systems.pipelines.graph_rag not found")
 
     adapter = create_adapter(graph_client, config)
     pipeline = GraphRAGPipeline(

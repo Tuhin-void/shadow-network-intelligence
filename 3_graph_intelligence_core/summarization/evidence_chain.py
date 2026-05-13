@@ -5,11 +5,13 @@ from typing import Optional
 class EvidenceChainBuilder:
     """
     Builds structured evidence chains from graph retrieval results.
+    - Max 5 evidence items (2 high-risk entities, 3 key relationships)
     - Entity evidence extraction
     - Relationship chain construction
-    - Supporting/proving/conflicting evidence classification
     - Confidence scoring
     """
+
+    PRIORITY_EDGES = {"OWNS", "SENT_TRANSACTION", "RECEIVED_TRANSACTION", "PART_OF", "REGISTERED_AT"}
 
     def __init__(self):
         self.evidence_id = 0
@@ -20,13 +22,25 @@ class EvidenceChainBuilder:
         query: str = "",
     ) -> list[dict]:
         """
-        Build evidence chain from retrieval results.
-        Returns list of evidence items with type, content, strength.
+        Build compressed evidence chain — max 5 items.
+        Priority 1: High-risk entities (max 2, risk >= 0.5)
+        Priority 2: Key relationships (max 3)
         """
         chain = []
 
         entities = retrieval_result.get("entities", [])
+        seen_entity_names = set()
+        unique_entities = []
         for e in entities:
+            name = e.get("name", e.get("v_id", ""))
+            if name not in seen_entity_names:
+                seen_entity_names.add(name)
+                unique_entities.append(e)
+
+        high_risk_entities = [e for e in unique_entities if (e.get("risk_score") or 0) >= 0.5]
+        high_risk_entities.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+
+        for e in high_risk_entities[:2]:
             self.evidence_id += 1
             evidence = {
                 "id": f"E{self.evidence_id:04d}",
@@ -43,7 +57,25 @@ class EvidenceChainBuilder:
             chain.append(evidence)
 
         context = retrieval_result.get("context", [])
-        for n in context[:20]:
+
+        seen_conn_keys = set()
+        unique_context = []
+        for n in context:
+            key = (n.get("name", n.get("v_id", "")), n.get("edge", ""))
+            if key not in seen_conn_keys:
+                seen_conn_keys.add(key)
+                unique_context.append(n)
+
+        priority_edges = [n for n in unique_context if n.get("edge", "") in self.PRIORITY_EDGES]
+        priority_edges.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+        other_edges = [n for n in unique_context if n.get("edge", "") not in self.PRIORITY_EDGES]
+        other_edges.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+
+        key_relationships = priority_edges[:3]
+        if len(key_relationships) < 3:
+            key_relationships.extend(other_edges[:3 - len(key_relationships)])
+
+        for n in key_relationships[:3]:
             self.evidence_id += 1
             evidence = {
                 "id": f"E{self.evidence_id:04d}",
@@ -59,7 +91,7 @@ class EvidenceChainBuilder:
             }
             chain.append(evidence)
 
-        return chain
+        return chain[:5]
 
     def _entity_evidence_text(self, entity: dict) -> str:
         vtype = entity.get("type", "Entity")
@@ -105,7 +137,7 @@ class EvidenceChainBuilder:
                 f"(entity={entity_count}, relationship={rel_count}, "
                 f"strong={strong})")
 
-    def to_context_string(self, chain: list[dict], max_items: int = 15) -> str:
+    def to_context_string(self, chain: list[dict], max_items: int = 5) -> str:
         """Convert evidence chain to a compact context string."""
         lines = ["Evidence Chain:"]
         for e in chain[:max_items]:

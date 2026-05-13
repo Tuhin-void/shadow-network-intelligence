@@ -1,0 +1,52 @@
+{
+  "db_config": {
+    "hostname": "http://tigergraph",
+    "restppPort": "9000",
+    "gsPort": "14240",
+    "getToken": false,
+    "default_timeout": 300,
+    "default_mem_threshold": 5000,
+    "default_thread_limit": 8
+  },
+  "graphrag_config": {
+    "reuse_embedding": true,
+    "ecc": "http://graphrag-ecc:8001",
+    "chat_history_api": "http://chat-history:8002",
+    "chunker_config": {
+      "chunker": "recursive"
+    },
+    "extractor": "llm"
+  },
+  "llm_config": {
+    "token_limit": 0,
+    "authentication_configuration": {},
+    "embedding_service": {
+      "model_name": "all-MiniLM:latest",
+      "embedding_model_service": "ollama",
+      "host": "http://ollama:11434"
+    },
+    "completion_service": {
+      "llm_service": "ollama",
+      "llm_model": "llama3.2",
+      "model_kwargs": {
+        "temperature": 0
+      },
+      "host": "http://ollama:11434"
+    },
+    "multimodal_service": {
+      "llm_service": "ollama",
+      "llm_model": "llama3.2",
+      "model_kwargs": {
+        "temperature": 0
+      }
+    },
+    "chat_service": {
+      "llm_service": "ollama",
+      "llm_model": "llama3.2",
+      "model_kwargs": {
+        "temperature": 0
+      },
+      "host": "http://ollama:11434"
+    }
+  }
+}

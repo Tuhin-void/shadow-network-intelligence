@@ -14,7 +14,7 @@ class VectorStore:
         provider: str = "chroma",
         persist_dir: Optional[Path] = None,
         collection_name: str = "shadow_network",
-        dimension: int = 768,
+        dimension: int = 2048,
     ):
         self.provider = provider
         self.persist_dir = persist_dir or (Path(__file__).parent.parent / "outputs" / "chromadb")
@@ -104,7 +104,7 @@ class VectorStore:
         ids = []
         metas = []
         for doc in documents:
-            doc_id = doc.get("id") or doc.get("document", {}).get("id", "") if isinstance(doc.get("document"), dict) else ""
+            doc_id = doc.get("id") or (doc.get("document", {}).get("id", "") if isinstance(doc.get("document"), dict) else "")
             if not doc_id:
                 continue
             ids.append(doc_id)

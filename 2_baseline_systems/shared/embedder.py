@@ -1,5 +1,5 @@
 """
-Unified embedder: Ollama / OpenAI / Mock.
+Unified embedder: Ollama / OpenAI / Mock / NIM.
 """
 import logging
 import hashlib
@@ -24,6 +24,14 @@ class Embedder:
         self._dimension = dimension
         self._cache = {}
 
+        if provider == "nim":
+            import openai
+            self._nim_client = openai.OpenAI(
+                base_url="https://integrate.api.nvidia.com/v1",
+                api_key="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",
+            )
+            self._embedding_dim = 2048
+
     @property
     def dimension(self) -> int:
         if self.model.startswith("text-embedding-3-large"):
@@ -43,6 +51,8 @@ class Embedder:
             result = self._ollama_embed(text)
         elif self.provider == "openai":
             result = self._openai_embed(text)
+        elif self.provider == "nim":
+            result = self._nim_embed(text)
         elif self.provider == "mock":
             result = self._mock_embed(text)
         else:
@@ -60,6 +70,8 @@ class Embedder:
                 batch_results = self._ollama_embed_batch(batch)
             elif self.provider == "openai":
                 batch_results = self._openai_embed_batch(batch)
+            elif self.provider == "nim":
+                batch_results = self._nim_embed_batch(batch)
             elif self.provider == "mock":
                 batch_results = [self._mock_embed(t) for t in batch]
             else:
@@ -115,6 +127,30 @@ class Embedder:
             vec = [x / norm for x in vec]
         random.seed(None)
         return vec
+
+    def _nim_embed(self, text: str) -> list[float]:
+        try:
+            resp = self._nim_client.embeddings.create(
+                model="nvidia/llama-nemotron-embed-1b-v2",
+                input=text,
+                extra_body={"input_type": "query"},
+            )
+            return resp.data[0].embedding
+        except Exception as e:
+            logger.warning(f"NIM embed failed: {e}, using mock")
+            return self._mock_embed(text)
+
+    def _nim_embed_batch(self, texts: list[str]) -> list[list[float]]:
+        try:
+            resp = self._nim_client.embeddings.create(
+                model="nvidia/llama-nemotron-embed-1b-v2",
+                input=texts,
+                extra_body={"input_type": "query"},
+            )
+            return [item.embedding for item in resp.data]
+        except Exception as e:
+            logger.warning(f"NIM batch embed failed: {e}, using mock")
+            return [self._mock_embed(t) for t in texts]
 
     def clear_cache(self) -> None:
         self._cache.clear()

@@ -61,6 +61,22 @@ class BenchmarkRunner:
 
     def _init_pipelines(self) -> dict:
         if not self._pipelines:
+            graph_provider = self.config.get("graph_provider", "mock")
+
+            graph_retriever = None
+            if graph_provider == "tigergraph":
+                import sys as _sys
+                _sys.path.insert(0, str(Path(__file__).parent.parent.parent / "3_graph_intelligence_core"))
+                from configs.config import get_config
+                from clients.graph_client import GraphClient
+                from adapters.tigergraph_adapter import create_adapter
+
+                config = get_config()
+                loader = AdaptiveDataLoader(self.config.get("profile", "small"))
+                dataset = loader.load()
+                graph_client = GraphClient(config, dataset=dataset)
+                graph_retriever = create_adapter(graph_client)
+
             self._pipelines = {
                 "pure_llm": PureLLMPipeline(
                     self.llm, self.tokens, self.data_loader,
@@ -73,7 +89,7 @@ class BenchmarkRunner:
                 ),
                 "graph_rag": GraphRAGPipeline(
                     self.llm, self.tokens, self.data_loader,
-                    graph_retriever=None,
+                    graph_retriever=graph_retriever,
                     embedder=self.embedder,
                     traversal_depth=2,
                     top_k=self.config.get("top_k", 10),

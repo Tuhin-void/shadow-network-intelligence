@@ -16,11 +16,13 @@ Modules:
 - caching/     Result caching
 """
 
-from configs.config import Config, load_config, get_config
+try:
+    # Works with -m (relative imports)
+    from .configs.config import Config, load_config, get_config
+    __all__ = ["Config", "load_config", "get_config"]
+except ImportError:
+    # Works with sys.path.insert(0, '3_graph_intelligence_core')
+    from configs.config import Config, load_config, get_config
+    __all__ = ["Config", "load_config", "get_config"]
 
 __version__ = "1.0.0"
-__all__ = [
-    "Config",
-    "load_config",
-    "get_config",
-]

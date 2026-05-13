@@ -45,7 +45,7 @@ class Config:
     profile: str = field(default_factory=lambda: _get_env("DATA_PROFILE", "hackathon_default"))
     seed: int = field(default_factory=lambda: _get_int("DATA_SEED", 42))
 
-    embedder_provider: str = field(default_factory=lambda: _get_env("EMBEDDER_PROVIDER", "ollama"))
+    embedder_provider: str = field(default_factory=lambda: _get_env("EMBEDDER_PROVIDER", "nim"))
     embedder_model: str = field(default_factory=lambda: _get_env("EMBEDDER_MODEL", "nomic-embed-text"))
 
     llm_provider: str = field(default_factory=lambda: _get_env("LLM_PROVIDER", "ollama"))
@@ -57,6 +57,8 @@ class Config:
 
     chromadb_persist_dir: Path = field(default_factory=lambda: Path(_get_env("CHROMADB_PERSIST_DIR", str(CHROMA_PERSIST))))
     chromadb_collection: str = field(default_factory=lambda: _get_env("CHROMADB_COLLECTION", "shadow_network"))
+
+    vector_provider: str = field(default_factory=lambda: _get_env("VECTOR_PROVIDER", "chroma"))
 
     tigergraph_host: str = field(default_factory=lambda: _get_env("TIGERGRAPH_HOST", "localhost"))
     tigergraph_port: int = field(default_factory=lambda: _get_int("TIGERGRAPH_PORT", 14240))
@@ -81,6 +83,8 @@ class Config:
     parallel_execution: bool = field(default_factory=lambda: _get_bool("PARALLEL_EXECUTION", True))
     benchmark_limit: int = field(default_factory=lambda: _get_int("BENCHMARK_LIMIT", 0))
 
+    graph_provider: str = field(default_factory=lambda: _get_env("GRAPH_PROVIDER", "mock"))
+
     data_engine_dir: Path = field(default_factory=lambda: Path(_get_env("DATA_ENGINE_DIR", str(DATA_ENGINE_DIR))))
     output_dir: Path = field(default_factory=lambda: Path(_get_env("OUTPUT_DIR", str(OUTPUT_DIR))))
 
@@ -90,6 +94,8 @@ class Config:
             return 1536
         if "nomic" in self.embedder_model:
             return 768
+        if self.embedder_provider == "nim":
+            return 2048
         return 384
 
     def ensure_dirs(self) -> None:

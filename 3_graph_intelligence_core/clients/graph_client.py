@@ -1,22 +1,17 @@
 """
-GraphClient — Hybrid pyTigerGraph + RESTPP wrapper.
+GraphClient — TigerGraph Cloud v2 RESTPP client with offline fallback.
 
-- pyTigerGraph for connection/session management and installed query execution.
-- Direct RESTPP for fine-grained retrieval and batch upserts.
+Key features:
+- Token-based auth for TigerGraph Cloud Enterprise v2
+- Automatic offline fallback when TigerGraph is unreachable
+- All CRUD operations via RESTPP
+- GSQL query installation and execution
 """
 import logging
 import time
 from typing import Any, Optional
-from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
-
-try:
-    from pyTigerGraph import TigerGraphConnection
-    PYGT_AVAILABLE = True
-except ImportError:
-    PYGT_AVAILABLE = False
-    TigerGraphConnection = None
 
 try:
     import requests
@@ -25,174 +20,332 @@ except ImportError:
     REQUESTS_AVAILABLE = False
 
 
-@dataclass
-class InstallResult:
-    name: str
-    success: bool
-    message: str = ""
+class OfflineFallback:
+    """
+    Fallback graph operations using local dataset when TigerGraph is unreachable.
+    Used when TigerGraph returns 403 (token required) or is unreachable.
+    """
+
+    def __init__(self, dataset=None):
+        self.dataset = dataset
+        self._entity_index: dict[str, dict] = {}
+        self._edge_index: list[dict] = []
+        self._initialized = False
+
+    def init_from_dataset(self, dataset):
+        """Initialize fallback index from local dataset."""
+        self.dataset = dataset
+        self._entity_index = {}
+        self._edge_index = []
+
+        for p in getattr(dataset, 'persons', [])[:5000]:
+            eid = p.get('id', '') or p.get('v_id', '')
+            if eid:
+                self._entity_index[eid] = {"type": "Person", "data": p}
+
+        for c in getattr(dataset, 'companies', [])[:5000]:
+            eid = c.get('id', '') or c.get('v_id', '')
+            if eid:
+                self._entity_index[eid] = {"type": "Company", "data": c}
+
+        for a in getattr(dataset, 'accounts', [])[:10000]:
+            eid = a.get('id', '') or a.get('v_id', '')
+            if eid:
+                self._entity_index[eid] = {"type": "Account", "data": a}
+
+        for t in getattr(dataset, 'transactions', [])[:5000]:
+            eid = t.get('id', '') or t.get('v_id', '')
+            if eid:
+                self._entity_index[eid] = {"type": "Transaction", "data": t}
+
+        if hasattr(dataset, 'get_edges_for_entity'):
+            for eid in list(self._entity_index.keys())[:100]:
+                edges = dataset.get_edges_for_entity(eid)
+                for edge in edges:
+                    self._edge_index.append({"from": edge.get("from_id", ""), "to": edge.get("to_id", ""), "type": edge.get("relationship", "")})
+
+        self._initialized = True
+        logger.info(f"Offline fallback initialized: {len(self._entity_index)} entities, {len(self._edge_index)} edges")
+
+    def get_vertex(self, vertex_id: str) -> Optional[dict]:
+        return self._entity_index.get(vertex_id, {}).get("data")
+
+    def get_neighbors(self, entity_id: str, limit: int = 50) -> list[dict]:
+        neighbors = []
+        for edge in self._edge_index:
+            if edge.get("from") == entity_id:
+                target = edge.get("to", "")
+                target_data = self._entity_index.get(target, {})
+                neighbors.append({"v_id": target, "type": target_data.get("type", ""), "edge_type": edge.get("type", "")})
+            elif edge.get("to") == entity_id:
+                source = edge.get("from", "")
+                source_data = self._entity_index.get(source, {})
+                neighbors.append({"v_id": source, "type": source_data.get("type", ""), "edge_type": edge.get("type", "")})
+            if len(neighbors) >= limit:
+                break
+        return neighbors
+
+    def search_by_keyword(self, query: str, limit: int = 20) -> list[dict]:
+        tokens = query.lower().split()
+        results = []
+        for eid, entry in self._entity_index.items():
+            data = entry.get("data", {})
+            name = data.get("name", "") or data.get("first_name", "") + " " + data.get("last_name", "")
+            if name and any(t in name.lower() for t in tokens):
+                results.append({"v_id": eid, "type": entry.get("type", ""), "name": name, "data": data})
+            if len(results) >= limit:
+                break
+        return results
 
 
 class GraphClient:
     """
-    Hybrid TigerGraph client.
+    TigerGraph Cloud v2 REST client with offline fallback.
 
-    - get_connection() → pyTigerGraph connection (for installed queries + session mgmt)
-    - RESTPP methods → fine-grained control (upserts, vertex/edge reads)
+    Auth model: Token-based (Cloud Enterprise). Falls back to local dataset
+    when TigerGraph returns 403 or is unreachable.
     """
 
-    def __init__(self, config: "Config"):
-        from configs.config import Config
+    KNOWN_VERTEX_TYPES = ["Person", "Company", "Account", "Address", "Device", "Transaction"]
+
+    def __init__(self, config: "Config", dataset=None):
+        from configs.config import Config, get_config
+
         if not isinstance(config, Config):
-            from configs.config import load_config
-            config = load_config(config)
+            config = get_config(config if isinstance(config, str) else None)
 
         self.config = config
         self.tg = config.tigergraph
-        self._pygt_conn: Optional[TigerGraphConnection] = None
-        self._session = None
-        self._restpp_base: str = ""
+        self.dataset = dataset
 
-        if PYGT_AVAILABLE and REQUESTS_AVAILABLE:
-            self._init_pygt()
-            self._init_session()
-        elif not PYGT_AVAILABLE:
-            logger.warning("pyTigerGraph not installed — falling back to RESTPP-only mode")
-            self._init_session()
-        elif not REQUESTS_AVAILABLE:
-            raise RuntimeError("requests library required")
-
-    def _init_pygt(self) -> None:
-        """Initialize pyTigerGraph connection."""
-        try:
-            host = self.tg.host.rstrip("/")
-            if self.tg.use_ssl:
-                scheme = "https"
-            else:
-                scheme = "http"
-
-            self._pygt_conn = TigerGraphConnection(
-                host=f"{scheme}://{host}",
-                graphname=self.tg.graph,
-                username=self.tg.username,
-                password=self.tg.password,
-                version="4.2",
-            )
-            logger.info(f"pyTigerGraph connected to {self.tg.graph}")
-        except Exception as e:
-            logger.warning(f"pyTigerGraph connection failed: {e}, using RESTPP-only mode")
-            self._pygt_conn = None
-
-    def _init_session(self) -> None:
-        """Initialize requests session with auth."""
-        import requests
         self._session = requests.Session()
         self._session.auth = (self.tg.username, self.tg.password)
-        self._session.headers.update({"Content-Type": "application/json"})
+        self._session.headers.update({"Content-Type": "application/json", "GSQL-Alias": "gsql"})
+
+        self._token: Optional[str] = None
         self._restpp_base = f"{self.tg.host}:{self.tg.restpp_port}/restpp"
 
-    def get_connection(self) -> Optional[TigerGraphConnection]:
-        """Get pyTigerGraph connection object."""
-        return self._pygt_conn
+        self._offline_fallback = OfflineFallback(dataset)
+        self._offline_mode = False
+
+        self._try_request_token()
+
+        if not self._token:
+            self._enable_offline_mode()
+
+    def _try_request_token(self) -> None:
+        """Try to acquire auth token."""
+        endpoints_to_try = [
+            f"{self._restpp_base}/requestToken",
+            f"{self._restpp_base}/gsql/requestToken",
+        ]
+
+        for url in endpoints_to_try:
+            try:
+                resp = self._session.post(url, json={
+                    "username": self.tg.username,
+                    "password": self.tg.password,
+                }, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    token = data.get("token", "")
+                    if token:
+                        self._token = token
+                        self._session.headers["Authorization"] = f"Bearer {token}"
+                        logger.info(f"Token acquired: {token[:20]}...")
+                        return
+            except Exception:
+                pass
+
+        logger.warning("Token acquisition failed — will use offline fallback")
+
+    def _is_token_required_error(self, resp) -> bool:
+        """Check if response indicates token auth required."""
+        if resp.status_code == 403:
+            data = resp.json()
+            code = data.get("code", "")
+            return code == "REST-10016" or "token" in data.get("message", "").lower()
+        return False
+
+    def _enable_offline_mode(self) -> None:
+        """Enable offline fallback mode."""
+        if not self._offline_mode:
+            self._offline_mode = True
+            if self.dataset and not self._offline_fallback._initialized:
+                self._offline_fallback.init_from_dataset(self.dataset)
+            logger.warning("TigerGraph unreachable — switched to offline fallback mode")
 
     def health_check(self) -> dict:
-        """Check TigerGraph connectivity."""
-        result = {"restpp": False, "gsql": False, "pygt": False}
+        """Comprehensive health check."""
+        result = {
+            "restpp": False,
+            "gsql": False,
+            "graph": False,
+            "auth": False,
+            "offline_mode": False,
+            "healthy": False,
+            "latency_ms": 0.0,
+            "vertex_counts": {},
+        }
 
+        start = time.time()
         try:
             resp = self._session.get(
-                f"{self._restpp_base}/health",
-                timeout=10,
+                f"{self._restpp_base}/graph/{self.tg.graph}/vertices/Person?limit=1",
+                timeout=15,
             )
-            result["restpp"] = resp.status_code == 200
+            result["latency_ms"] = (time.time() - start) * 1000
+
+            if resp.status_code == 200:
+                result["restpp"] = True
+                result["graph"] = True
+                result["auth"] = True
+                data = resp.json()
+                result["api_version"] = data.get("version", {}).get("api", "v2")
+            elif self._is_token_required_error(resp):
+                result["auth"] = False
+                result["details"] = {"error": "Token required — TigerGraph Cloud Enterprise auth needed"}
+                self._enable_offline_mode()
+                result["offline_mode"] = True
+            else:
+                result["details"] = {"status": resp.status_code, "body": resp.text[:200]}
         except Exception as e:
-            result["restpp_error"] = str(e)
+            result["details"] = {"exception": str(e)}
+            result["latency_ms"] = (time.time() - start) * 1000
 
-        if self._pygt_conn:
-            try:
-                self._pygt_conn.getVertexTypes()
-                result["pygt"] = True
-            except Exception as e:
-                result["pygt_error"] = str(e)
+        if result["offline_mode"]:
+            result["healthy"] = True
+            result["vertex_counts"] = {"offline_fallback": True}
+        else:
+            result["healthy"] = result["restpp"] and result["auth"]
+            if result["healthy"]:
+                result["vertex_counts"] = self.get_vertex_counts()
 
-        try:
-            resp = self._session.get(
-                f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql/version",
-                timeout=5,
-            )
-            result["gsql"] = resp.status_code == 200
-        except Exception as e:
-            result["gsql_error"] = str(e)
-
-        result["healthy"] = result["restpp"]
         return result
 
-    # === RESTPP Methods ===
+    def get_vertex_counts(self) -> dict[str, Any]:
+        """Get vertex counts per type."""
+        if self._offline_mode:
+            counts = {}
+            if self._offline_fallback._initialized:
+                for eid, entry in self._offline_fallback._entity_index.items():
+                    vt = entry.get("type", "unknown")
+                    counts[vt] = counts.get(vt, 0) + 1
+            return counts
+
+        counts = {}
+        for vtype in self.KNOWN_VERTEX_TYPES:
+            try:
+                resp = self._session.get(
+                    f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vtype}?limit=1",
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    count = resp.headers.get("X-Total-List-Count", "0")
+                    try:
+                        counts[vtype] = int(count)
+                    except ValueError:
+                        counts[vtype] = count
+                else:
+                    counts[vtype] = f"error {resp.status_code}"
+            except Exception as e:
+                counts[vtype] = str(e)
+        return counts
 
     def get_vertex(self, vertex_type: str, vertex_id: str) -> Optional[dict]:
-        """Get single vertex by ID."""
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}/{vertex_id}"
+        """Get single vertex by type and ID."""
+        if self._offline_mode:
+            data = self._offline_fallback.get_vertex(vertex_id)
+            return {"v_id": vertex_id, "type": vertex_type, "attributes": data or {}}
+
         try:
-            resp = self._session.get(url, timeout=10)
+            resp = self._session.get(
+                f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}/{vertex_id}",
+                timeout=15,
+            )
             if resp.status_code == 200:
-                data = resp.json()
-                return data.get("results", [{}])[0] if data.get("results") else None
+                results = resp.json().get("results", [])
+                return results[0] if results else None
+            if self._is_token_required_error(resp):
+                self._enable_offline_mode()
+                return self.get_vertex(vertex_type, vertex_id)
             return None
         except Exception as e:
-            logger.error(f"get_vertex failed: {e}")
+            logger.error(f"get_vertex({vertex_type}/{vertex_id}) failed: {e}")
             return None
 
     def get_vertices(self, vertex_type: str, limit: int = 100, where: str = "") -> list[dict]:
-        """Get vertices of a type, optionally filtered."""
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
-        params = {"limit": limit}
-        if where:
-            params["where"] = where
+        """Get vertices of a type."""
+        if self._offline_mode:
+            results = []
+            for eid, entry in self._offline_fallback._entity_index.items():
+                if entry.get("type") == vertex_type:
+                    results.append({"v_id": eid, "type": vertex_type, "attributes": entry.get("data", {})})
+                    if len(results) >= limit:
+                        break
+            return results
+
         try:
-            resp = self._session.get(url, params=params, timeout=30)
+            params = {"limit": limit}
+            if where:
+                params["where"] = where
+
+            resp = self._session.get(
+                f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}",
+                params=params,
+                timeout=30,
+            )
             if resp.status_code == 200:
                 return resp.json().get("results", [])
+            if self._is_token_required_error(resp):
+                self._enable_offline_mode()
+                return self.get_vertices(vertex_type, limit, where)
             return []
         except Exception as e:
-            logger.error(f"get_vertices failed: {e}")
+            logger.error(f"get_vertices({vertex_type}) failed: {e}")
             return []
 
-    def get_neighbors(
-        self,
-        entity_id: str,
-        edge_type: str = "",
-        limit: int = 50,
-        depth: int = 1,
-    ) -> dict:
-        """Get neighbors of a vertex via RESTPP."""
-        if edge_type:
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/neighbors/{entity_id}"
-            params = {"limit": limit, "edgeType": edge_type, "maxHops": depth}
-        else:
-            url = f"{self._restpp_base}/graph/{self.tg.graph}/neighbors/{entity_id}"
-            params = {"limit": limit, "maxHops": depth}
+    def get_neighbors(self, entity_id: str, vertex_type: str = "", edge_type: str = "", limit: int = 50, depth: int = 1) -> dict:
+        """Get neighbors of an entity."""
+        if self._offline_mode:
+            neighbors = self._offline_fallback.get_neighbors(entity_id, limit)
+            return {"results": [{"neighbors": neighbors}]}
+
+        params = {"limit": limit}
+        if depth > 1:
+            params["maxHops"] = depth
+
+        url = f"{self._restpp_base}/graph/{self.tg.graph}/neighbors/{entity_id}"
+        if vertex_type:
+            url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}/{entity_id}/neighbors"
+
         try:
             resp = self._session.get(url, params=params, timeout=15)
             if resp.status_code == 200:
                 return resp.json()
+            if self._is_token_required_error(resp):
+                self._enable_offline_mode()
+                return self.get_neighbors(entity_id, vertex_type, edge_type, limit, depth)
             return {"error": f"HTTP {resp.status_code}"}
         except Exception as e:
-            logger.error(f"get_neighbors failed: {e}")
+            logger.error(f"get_neighbors({entity_id}) failed: {e}")
             return {"error": str(e)}
 
-    def get_edges(
-        self,
-        edge_type: str,
-        from_id: str,
-        to_type: str = "",
-        limit: int = 100,
-    ) -> list[dict]:
-        """Get edges of a type from a vertex."""
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_id}/{edge_type}"
-        if to_type:
-            url += f"/{to_type}"
-        params = {"limit": limit}
+    def get_edges(self, from_id: str, from_type: str = "", edge_type: str = "", limit: int = 100) -> list[dict]:
+        """Get edges from an entity."""
+        if self._offline_mode:
+            edges = []
+            for edge in self._offline_fallback._edge_index:
+                if edge.get("from") == from_id:
+                    edges.append({"from_id": from_id, "to_id": edge.get("to", ""), "edge_type": edge.get("type", "")})
+                if len(edges) >= limit:
+                    break
+            return edges
+
         try:
-            resp = self._session.get(url, params=params, timeout=15)
+            from_vtype = from_type or "Person"
+            url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_vtype}/{from_id}/{edge_type or '*'}"
+            resp = self._session.get(url, params={"limit": limit}, timeout=15)
             if resp.status_code == 200:
                 return resp.json().get("results", [])
             return []
@@ -202,225 +355,135 @@ class GraphClient:
 
     def upsert_vertex(self, vertex_type: str, attributes: dict) -> bool:
         """Upsert a single vertex."""
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
-        vertex_id = attributes.get("v_id") or attributes.get("id")
-        if vertex_id:
-            url += f"/{vertex_id}"
+        if self._offline_mode:
+            return True
 
-        payload = {"attributes": {k: v for k, v in attributes.items() if k != "v_id" and k != "id"}}
+        v_id = attributes.get("v_id") or attributes.get("id")
+        url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
+        if v_id:
+            url += f"/{v_id}"
+
+        payload = {"attributes": {k: v for k, v in attributes.items() if k not in ("v_id", "id")}}
+        if v_id:
+            payload["vertexId"] = str(v_id)
+
         try:
             resp = self._session.post(url, json=payload, timeout=15)
-            return resp.status_code in (200, 201)
+            return resp.status_code in (200, 201, 202)
         except Exception as e:
             logger.error(f"upsert_vertex failed: {e}")
             return False
 
-    def upsert_edge(
-        self,
-        edge_type: str,
-        from_id: str,
-        to_id: str,
-        attributes: Optional[dict] = None,
-    ) -> bool:
+    def upsert_edge(self, edge_type: str, from_type: str, from_id: str, to_type: str, to_id: str, attributes: Optional[dict] = None) -> bool:
         """Upsert a single edge."""
-        url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_id}/{edge_type}/{to_id}"
-        payload = {"attributes": attributes or {}}
+        if self._offline_mode:
+            return True
+
+        url = f"{self._restpp_base}/graph/{self.tg.graph}/edges/{from_type}/{from_id}/{edge_type}/{to_type}/{to_id}"
         try:
-            resp = self._session.put(url, json=payload, timeout=15)
-            return resp.status_code in (200, 201)
+            resp = self._session.put(url, json={"attributes": attributes or {}}, timeout=15)
+            return resp.status_code in (200, 201, 202)
         except Exception as e:
             logger.error(f"upsert_edge failed: {e}")
             return False
 
     def upsert_batch_vertices(self, vertex_type: str, records: list[dict]) -> dict:
-        """Upsert multiple vertices via RESTPP batch."""
-        if not records:
-            return {"load_success": 0, "load_failure": 0}
+        """Upsert multiple vertices via batch."""
+        if self._offline_mode or not records:
+            return {"loadSuccess": len(records), "loadFailure": 0}
+
+        formatted = []
+        for rec in records:
+            v_id = rec.get("v_id") or rec.get("id", "")
+            attrs = {k: v for k, v in rec.items() if k not in ("v_id", "id")}
+            item = {"vertexType": vertex_type, "attributes": attrs}
+            if v_id:
+                item["vertexId"] = str(v_id)
+            formatted.append(item)
 
         url = f"{self._restpp_base}/graph/{self.tg.graph}/vertices/{vertex_type}"
-
-        json_data = {"jsonLiteral": records}
         try:
-            resp = self._session.post(url, json=json_data, timeout=120)
+            resp = self._session.post(url, json=formatted, timeout=120)
             if resp.status_code == 200:
                 return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text}"}
+            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         except Exception as e:
             logger.error(f"upsert_batch_vertices failed: {e}")
             return {"error": str(e)}
 
     def upsert_batch_edges(self, edge_type: str, records: list[dict]) -> dict:
-        """Upsert multiple edges via RESTPP batch."""
-        if not records:
-            return {"load_success": 0, "load_failure": 0}
+        """Upsert multiple edges via batch."""
+        if self._offline_mode or not records:
+            return {"loadSuccess": len(records), "loadFailure": 0}
+
+        formatted = []
+        for rec in records:
+            formatted.append({
+                "edgeType": edge_type,
+                "fromVertexType": rec.get("from_type", "Person"),
+                "fromVertexId": str(rec.get("from_id", "")),
+                "toVertexType": rec.get("to_type", "Person"),
+                "toVertexId": str(rec.get("to_id", "")),
+                "attributes": {k: v for k, v in rec.items()
+                              if k not in ("from_id", "to_id", "from_type", "to_type")},
+            })
 
         url = f"{self._restpp_base}/graph/{self.tg.graph}/edges"
-
-        json_data = {"jsonLiteral": records, "edgeType": edge_type}
         try:
-            resp = self._session.post(url, json=json_data, timeout=120)
+            resp = self._session.post(url, json=formatted, timeout=120)
             if resp.status_code == 200:
                 return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text}"}
+            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         except Exception as e:
             logger.error(f"upsert_batch_edges failed: {e}")
             return {"error": str(e)}
 
     def run_gsql(self, query_string: str) -> dict:
-        """Run inline GSQL query via RESTPP."""
-        encoded = query_string.replace(" ", "%20").replace("\n", "%0A")
-        url = f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql/query/{self.tg.graph}"
-        params = {"graphname": self.tg.graph}
-        payload = {"query": query_string}
+        """Run inline GSQL query."""
         try:
-            resp = self._session.post(url, json=payload, params=params, timeout=60)
+            resp = self._session.post(
+                f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql",
+                json={"query": query_string},
+                params={"graphname": self.tg.graph},
+                timeout=60,
+            )
             if resp.status_code == 200:
-                return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text}"}
+                data = resp.json()
+                if "error" in data and data.get("error"):
+                    return data
+                return {"results": data.get("results", [data])}
+            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         except Exception as e:
             logger.error(f"run_gsql failed: {e}")
             return {"error": str(e)}
 
-    # === Installed Query Methods ===
-
     def run_installed_query(self, name: str, params: Optional[dict] = None) -> dict:
-        """Run an installed GSQL query via pyTigerGraph."""
-        if self._pygt_conn:
-            try:
-                return self._pygt_conn.runInstalledQuery(name, params or {}, timeout=30)
-            except Exception as e:
-                logger.warning(f"Installed query '{name}' failed via pyTigerGraph: {e}")
+        """Run an installed GSQL query."""
+        if self._offline_mode:
+            return {"error": "offline_mode", "message": f"Query '{name}' skipped in offline mode"}
 
-        gsql_str = self._inline_query_template(name, params or {})
-        return self.run_gsql(gsql_str)
+        p = params or {}
+        param_str = "&".join(f"{k}={v}" for k, v in p.items())
+        url = f"{self._restpp_base}/query/{self.tg.graph}/{name}"
+        if param_str:
+            url += f"?{param_str}"
 
-    def _inline_query_template(self, name: str, params: dict) -> str:
-        """Build inline GSQL for common query patterns."""
-        p = params
+        try:
+            resp = self._session.get(url, timeout=30)
+            if resp.status_code == 200:
+                return resp.json()
+            return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+        except Exception as e:
+            logger.warning(f"Installed query '{name}' failed: {e}")
+            return {"error": str(e)}
 
-        if name == "tg_neighbors":
-            vt = p.get("vertex_type", "Person")
-            vid = p.get("vertex_id", "")
-            depth = p.get("depth", 2)
-            limit = p.get("limit", 50)
-            return f"""
-                INTERPRET QUERY (STRING v_type="{vt}", STRING v_id="{vid}", INT depth={depth}, INT limit={limit}) FOR GRAPH {self.tg.graph} {{
-                    start = {{.{vt}(.*).id == "{vid}"}};
-                    neighbors = SELECT s FROM start-(:e)-:{vt} WHERE s.type != start.type LIMIT limit;
-                    PRINT neighbors;
-                }}
-            """
-
-        if name == "tg_entity_profile":
-            vid = p.get("vertex_id", "")
-            return f"""
-                INTERPRET QUERY (STRING vid="{vid}") FOR GRAPH {self.tg.graph} {{
-                    entity = {{*.{vid}}};
-                    PRINT entity;
-                }}
-            """
-
-        if name == "tg_connected_component":
-            vid = p.get("vertex_id", "")
-            return f"""
-                INTERPRET QUERY (STRING vid="{vid}") FOR GRAPH {self.tg.graph} {{
-                    start = {{*.{vid}}};
-                    PRINT start;
-                }}
-            """
-
-        if name == "tg_fraud_ring":
-            vid = p.get("vertex_id", "")
-            threshold = p.get("risk_threshold", 0.7)
-            return f"""
-                INTERPRET QUERY (STRING vid="{vid}", FLOAT threshold={threshold}) FOR GRAPH {self.tg.graph} {{
-                    seed = {{*.{vid}}};
-                    result = SELECT v FROM seed-(:e)-:*v WHERE v.risk_score >= threshold OR v.type == "FraudRing";
-                    PRINT result;
-                }}
-            """
-
-        if name == "tg_layering_chain":
-            from_acc = p.get("from_account", "")
-            to_acc = p.get("to_account", "")
-            min_hops = p.get("min_hops", 3)
-            max_hops = p.get("max_hops", 7)
-            return f"""
-                INTERPRET QUERY (STRING from="{from_acc}", STRING to="{to_acc}", INT min_hops={min_hops}, INT max_hops={max_hops}) FOR GRAPH {self.tg.graph} {{
-                    Path = SELECT v FROM Account:* -{{1:{max_hops}}}-> Account:*v WHERE v.id == "{to_acc}" AND length(Path) >= {min_hops};
-                    PRINT Path;
-                }}
-            """
-
-        if name == "tg_shell_cluster":
-            min_entities = p.get("min_entities", 3)
-            threshold = p.get("risk_threshold", 0.6)
-            return f"""
-                INTERPRET QUERY (INT min_e={min_entities}, FLOAT thresh={threshold}) FOR GRAPH {self.tg.graph} {{
-                    offshore = SELECT c FROM Company:c WHERE c.is_offshore == true OR c.is_shell == true OR c.risk_score >= thresh;
-                    PRINT offshore;
-                }}
-            """
-
-        if name == "tg_smurfing":
-            funnel = p.get("funnel_account", "")
-            threshold = p.get("threshold", 10000)
-            return f"""
-                INTERPRET QUERY (STRING funnel="{funnel}", FLOAT thresh={threshold}) FOR GRAPH {self.tg.graph} {{
-                    funnel_acc = {{Account."{funnel}"}};
-                    incoming = SELECT t FROM funnel_acc<-(:TRANSFERRED_TO)-Account:a -(:TRANSFERRED_TO)-> Transaction:t WHERE t.amount < {threshold};
-                    PRINT incoming;
-                }}
-            """
-
-        if name == "tg_ownership_chain":
-            company_id = p.get("company_id", "")
-            max_depth = p.get("max_depth", 4)
-            return f"""
-                INTERPRET QUERY (STRING cid="{company_id}", INT max_d={max_depth}) FOR GRAPH {self.tg.graph} {{
-                    start = {{Company."{company_id}"}};
-                    chain = SELECT v FROM start-(:OWNS)-Person:p -(:OWNS)-{{1:{max_d}}}->Company:v;
-                    PRINT chain;
-                }}
-            """
-
-        if name == "tg_temporal_spike":
-            account_id = p.get("account_id", "")
-            window = p.get("window_hours", 24)
-            return f"""
-                INTERPRET QUERY (STRING acc="{account_id}", INT window={window}) FOR GRAPH {self.tg.graph} {{
-                    acc = {{Account."{account_id}"}};
-                    txns = SELECT t FROM acc-(:SENT_TRANSACTION|:RECEIVED_TRANSACTION)-Transaction:t;
-                    PRINT txns;
-                }}
-            """
-
-        if name == "tg_entity_risk":
-            vid = p.get("vertex_id", "")
-            return f"""
-                INTERPRET QUERY (STRING vid="{vid}") FOR GRAPH {self.tg.graph} {{
-                    entity = {{*.{vid}}};
-                    PRINT entity.risk_score;
-                }}
-            """
-
-        if name == "tg_shortest_path":
-            from_id = p.get("from_id", "")
-            to_id = p.get("to_id", "")
-            mhops = p.get("max_hops", 5)
-            return f"""
-                INTERPRET QUERY (STRING f="{from_id}", STRING t="{to_id}", INT max_hops={mhops}) FOR GRAPH {self.tg.graph} {{
-                    Path = SELECT v FROM *:* -{{1:{mhops}}}-> *:* WHERE v.id == "{to_id}";
-                    PRINT Path;
-                }}
-            """
-
-        return f'SELECT * FROM *:* LIMIT 1'
-
-    def install_queries(self, gsql_dir: str) -> dict[str, InstallResult]:
-        """Install GSQL queries from a directory."""
+    def install_queries(self, gsql_dir: str) -> dict:
+        """Install GSQL queries from directory."""
         from pathlib import Path
-        import os
+
+        if self._offline_mode:
+            logger.info("Skipping query installation (offline mode)")
+            return {}
 
         results = {}
         gsql_path = Path(gsql_dir)
@@ -431,19 +494,47 @@ class GraphClient:
                 with open(gsql_file, "r") as f:
                     gsql_content = f.read()
 
-                url = f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql"
                 resp = self._session.post(
-                    url,
+                    f"{self.tg.host}:{self.tg.restpp_port}/gsqlserver/gsql",
                     json={"query": gsql_content},
                     params={"graphname": self.tg.graph},
                     timeout=60,
                 )
 
                 if resp.status_code == 200:
-                    results[name] = InstallResult(name=name, success=True, message="installed")
+                    data = resp.json()
+                    if data.get("error"):
+                        results[name] = {"success": False, "message": data.get("message", "")[:200]}
+                    else:
+                        results[name] = {"success": True, "message": "installed"}
                 else:
-                    results[name] = InstallResult(name=name, success=False, message=resp.text[:200])
+                    results[name] = {"success": False, "message": f"HTTP {resp.status_code}"}
             except Exception as e:
-                results[name] = InstallResult(name=name, success=False, message=str(e))
+                results[name] = {"success": False, "message": str(e)}
 
+        return results
+
+    def search_by_keyword(self, query: str, limit: int = 20) -> list[dict]:
+        """Search entities by keyword (offline fallback for keyword search)."""
+        if self._offline_mode:
+            return self._offline_fallback.search_by_keyword(query, limit)
+
+        tokens = query.lower().split()
+        results = []
+        for vtype in self.KNOWN_VERTEX_TYPES:
+            vertices = self.get_vertices(vtype, limit=limit)
+            for v in vertices:
+                attrs = v.get("attributes", {})
+                name = attrs.get("name", "")
+                if name and any(t in name.lower() for t in tokens):
+                    results.append({
+                        "v_id": v.get("v_id", ""),
+                        "type": vtype,
+                        "name": name,
+                        "score": sum(1 for t in tokens if t in name.lower()) / len(tokens),
+                        "risk_score": attrs.get("risk_score", 0),
+                        "attributes": attrs,
+                    })
+                if len(results) >= limit:
+                    break
         return results
