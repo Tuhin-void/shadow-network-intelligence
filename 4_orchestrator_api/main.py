@@ -29,8 +29,10 @@ async def lifespan(app: FastAPI):
         from orchestration import InvestigationOrchestrator
         prewarm = os.environ.get("SNI_PREWARM_ON_START", "1") != "0"
         top_n = int(os.environ.get("SNI_PREWARM_TOP_N", "30"))
+        preset_prewarm = os.environ.get("SNI_PRESET_PREWARM", "0") == "1"
         app.state.orchestrator = InvestigationOrchestrator(
             prewarm_on_init=prewarm, prewarm_top_n=top_n,
+            preset_prewarm=preset_prewarm,
         )
         info(f"Orchestrator ready: {app.state.orchestrator.status()}")
     except Exception as e:
@@ -57,10 +59,11 @@ app.add_middleware(
 
 # Include routers — investigate + demo are the canonical orchestrator surface;
 # the rest are pre-existing stubs that are kept for backwards-compatibility.
-from api import investigate, demo, alerts, reports, benchmark, search, health
+from api import investigate, demo, cognitive, alerts, reports, benchmark, search, health
 
 app.include_router(investigate.router, prefix=PATH_PREFIX, tags=["Investigate"])
 app.include_router(demo.router,        prefix=PATH_PREFIX, tags=["Demo"])
+app.include_router(cognitive.router,   prefix=PATH_PREFIX, tags=["Cognitive"])
 app.include_router(alerts.router,      prefix=PATH_PREFIX, tags=["Alerts"])
 app.include_router(reports.router,     prefix=PATH_PREFIX, tags=["Reports"])
 app.include_router(benchmark.router,   prefix=PATH_PREFIX, tags=["Benchmark"])

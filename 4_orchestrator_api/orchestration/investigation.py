@@ -39,6 +39,7 @@ from .events import (
 )
 from .session import SessionStore, InvestigationSession
 from .report import build_report
+from .result_cache import ResultCache
 
 
 class InvestigationOrchestrator:
@@ -48,7 +49,8 @@ class InvestigationOrchestrator:
     prewarms on first init.
     """
 
-    def __init__(self, prewarm_on_init: bool = True, prewarm_top_n: int = 30) -> None:
+    def __init__(self, prewarm_on_init: bool = True, prewarm_top_n: int = 30,
+                 preset_prewarm: bool = False) -> None:
         from clients.graph_client import GraphClient
         from configs.config import load_config
         from graph_rag.graphrag_engine import GraphRAGEngine
@@ -58,6 +60,9 @@ class InvestigationOrchestrator:
         self._engine = GraphRAGEngine(self._client, self._config, compression="rule_based")
         self._sessions = SessionStore()
         self._is_offline = self._client._offline_mode
+        # Result cache (LRU + TTL). Memoizes identical engine.query calls so
+        # the second invocation of a stable preset returns in <50ms.
+        self._result_cache = ResultCache()
 
         self._prewarm_stats: dict = {}
         if prewarm_on_init and not self._is_offline:
@@ -65,6 +70,43 @@ class InvestigationOrchestrator:
                 self._prewarm_stats = self._engine.prewarm(top_n=prewarm_top_n)
             except Exception as e:
                 self._prewarm_stats = {"warmed": 0, "error": str(e)}
+
+        self._preset_prewarm_stats: dict = {}
+        if preset_prewarm and not self._is_offline:
+            self._preset_prewarm_stats = self._prewarm_presets()
+
+    def _prewarm_presets(self) -> dict:
+        """
+        Run every curated demo preset once at boot to warm the result cache.
+        Subsequent clicks on the same preset return in <50ms.
+
+        Each preset run is wrapped in try/except so a single bad preset
+        doesn't break boot.
+        """
+        from .presets import DEMO_PRESETS
+        t0 = time.time()
+        succeeded: list[str] = []
+        failed: list[dict] = []
+        for p in DEMO_PRESETS:
+            try:
+                _ = self._engine.query(
+                    query=p["query"],
+                    config={"strategy": "auto", "top_k": p["top_k"], "depth": p["depth"]},
+                )
+                # Insert directly into the cache so subsequent calls hit it.
+                self._result_cache.get_or_compute(
+                    query=p["query"], top_k=p["top_k"], depth=p["depth"],
+                    strategy="auto",
+                    compute=lambda r=_: r,
+                )
+                succeeded.append(p["key"])
+            except Exception as e:
+                failed.append({"key": p["key"], "error": str(e)[:120]})
+        return {
+            "warmed_presets": succeeded,
+            "failed": failed,
+            "elapsed_s": round(time.time() - t0, 2),
+        }
 
     # ── Session management ────────────────────────────────────────────────
 
@@ -149,16 +191,23 @@ class InvestigationOrchestrator:
             yield emit(EVENT_PREWARM_DONE, self._prewarm_stats)
 
         # 2. Run the underlying engine (this is where ALL retrieval happens).
+        #    Result cache short-circuits identical (query, top_k, depth, strategy).
         t0 = time.perf_counter()
         try:
-            engine_result = self._engine.query(
-                query=query,
-                config={"strategy": strategy, "top_k": top_k, "depth": depth},
+            engine_result, cache_hit = self._result_cache.get_or_compute(
+                query=query, top_k=top_k, depth=depth, strategy=strategy,
+                compute=lambda: self._engine.query(
+                    query=query,
+                    config={"strategy": strategy, "top_k": top_k, "depth": depth},
+                ),
             )
         except Exception as e:
             yield emit(EVENT_ERROR, {"error": str(e), "type": type(e).__name__})
             return
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        # Annotate the result so downstream consumers can see cache provenance.
+        md = engine_result.setdefault("metadata", {})
+        md["cache_hit"] = bool(cache_hit)
 
         # 3. Emit fine-grained discovery events from the engine result.
         for ent in engine_result.get("entities", [])[:8]:
@@ -239,6 +288,8 @@ class InvestigationOrchestrator:
             "offline_mode": self._is_offline,
             "session_count": len(self._sessions._sessions),
             "prewarm": self._prewarm_stats,
+            "preset_prewarm": self._preset_prewarm_stats,
             "cache_hits": cache_hits,
             "cache_misses": cache_misses,
+            "result_cache": self._result_cache.stats(),
         }

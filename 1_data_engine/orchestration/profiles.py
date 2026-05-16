@@ -11,6 +11,10 @@ class GenerationProfile(Enum):
     MEDIUM = "medium"
     LARGE = "large"
     HACKATHON_DEFAULT = "hackathon_default"
+    # Additive: a profile tuned for benchmark-grade GraphRAG superiority demos.
+    # Heavier topology density, larger document corpus, more fraud rings.
+    # Does NOT change the generation logic — only profile knobs.
+    BENCHMARK_DENSE = "benchmark_dense"
 
 
 @dataclass
@@ -138,6 +142,38 @@ PROFILES: Dict[str, GenerationConfig] = {
         document_count=5000,
         min_tokens=100000,
         max_tokens=500000,
+    ),
+    # benchmark_dense — opt-in profile used by adversarial benchmarks and
+    # GraphRAG-superiority demos. Tuned for:
+    #   • 1M+ token corpus  (document_count + per-entity ratio)
+    #   • Higher fraud ring count and density  → more multi-hop traversal opportunities
+    #   • Lower address/device counts relative to persons  → forces shared-infrastructure
+    #     reuse, which is exactly what SHARES_ADDRESS_WITH / SHARES_DEVICE_WITH need
+    #   • More vector noise + semantic traps  → exposes VectorRAG fragility
+    #
+    # Uses the existing generators verbatim — only the knob values are different.
+    "benchmark_dense": GenerationConfig(
+        profile=GenerationProfile.BENCHMARK_DENSE,
+        person_count=12000,
+        company_count=8000,
+        account_count=20000,
+        address_count=4500,         # intentionally sparse → forces collisions
+        device_count=3500,          # intentionally sparse → forces SHARES_DEVICE_WITH
+        transaction_count=120000,
+        edge_target=1_400_000,
+        fraud_ring_count=40,
+        fraud_density=0.05,         # 5% vs 3% default → denser fraud topology
+        document_count=18000,
+        document_per_entity=0.35,
+        min_tokens=1_200_000,
+        max_tokens=2_400_000,
+        offshore_ratio=0.15,
+        shell_ratio=0.14,
+        pep_ratio=0.07,
+        sanctioned_ratio=0.04,
+        noise_ratio=0.20,            # more noise → harder for VectorRAG
+        semantic_trap_count=240,
+        burst_ratio=0.08,
     ),
 }
 

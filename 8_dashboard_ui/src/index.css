@@ -1,12 +1,701 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap";
+@import "tailwindcss";
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  /* depth ladder — true black to graphite */
+  --color-void: #000003;
+  --color-abyss: #04060a;
+  --color-graphite-950: #07090e;
+  --color-graphite-900: #0a0d13;
+  --color-graphite-850: #0e1219;
+  --color-graphite-800: #131720;
+  --color-graphite-700: #181d28;
+  --color-graphite-600: #20262f;
+  --color-graphite-500: #2a313c;
+
+  /* tactical accents */
+  --color-ice-200: #cffafe;
+  --color-ice-300: #a5f3ff;
+  --color-ice-400: #67e8f9;
+  --color-ice-500: #22d3ee;
+  --color-ice-600: #0891b2;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-rose-300: #fda4af;
+  --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-violet-300: #d8b4fe;
+  --color-violet-400: #c084fc;
+  --color-violet-500: #a855f7;
+  --color-violet-600: #9333ea;
+
+  /* text */
+  --color-text-bright: #f8fafc;
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-faint: #475569;
+  --color-text-ghost: #2d3748;
+
+  /* lines — atmospheric, mostly invisible. Borders are a last resort. */
+  --color-line-soft: rgba(148, 163, 184, 0.025);
+  --color-line: rgba(148, 163, 184, 0.06);
+  --color-line-strong: rgba(148, 163, 184, 0.12);
+
+  --font-sans: "Inter", "system-ui", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* Unified worldspace rhythm — every breathing element keys off these so
+   * the entire environment shares a single quiet tempo. Override per env
+   * mode via :root[data-env-mode] rules below. */
+  --rhythm-quick: 3.2s;
+  --rhythm-mid:   5.4s;
+  --rhythm-slow:  8.6s;
+
+  /* Behavioral depth — different layers respond at different speeds. */
+  --depth-fg-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --depth-mid-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --depth-bg-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --depth-fg-duration: 220ms;
+  --depth-mid-duration: 480ms;
+  --depth-bg-duration: 900ms;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    background-color: var(--color-void);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(900px 700px at 8% -10%, rgba(34, 211, 238, 0.045), transparent 60%),
+      radial-gradient(800px 600px at 95% 110%, rgba(168, 85, 247, 0.04), transparent 60%),
+      radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.6), transparent 70%),
+      var(--color-void);
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.22);
+    color: var(--color-text-bright);
+  }
+}
+
+/* ---------- Atmospheric primitives ---------- */
+
+.fill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+/* Layered tactical grid — softer, finer, more atmospheric */
+.tactical-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.tactical-grid-fine {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.tactical-vignette {
+  background:
+    radial-gradient(ellipse 80% 70% at center, transparent 30%, rgba(0, 0, 0, 0.70) 100%);
+}
+
+/* Depth fog — slow atmospheric drift, lower intensity */
+.depth-fog {
+  background:
+    radial-gradient(900px 600px at 22% 28%, rgba(34, 211, 238, 0.035), transparent 65%),
+    radial-gradient(800px 700px at 78% 72%, rgba(168, 85, 247, 0.030), transparent 65%),
+    radial-gradient(700px 600px at 50% 50%, rgba(245, 158, 11, 0.010), transparent 70%);
+  animation: depth-drift 42s ease-in-out infinite alternate;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: var(--env-fog-opacity, 0.65);
+  transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------- Environment mode atmosphere ----------
+ * Three coordinated modes set via the root data-env-mode attribute.
+ * Each mode tunes fog density, ambient backdrop saturation, and the
+ * intensity of breathing glow utilities — the analyst feels the
+ * workspace shift without any single dramatic moment.
+ */
+:root[data-env-mode="ambient"] {
+  --env-fog-opacity: 0.65;
+  --env-veil-saturation: 130%;
+  --env-glow-multiplier: 1;
+  --env-anim-duration-scale: 1;
+}
+:root[data-env-mode="calm"] {
+  --env-fog-opacity: 0.28;
+  --env-veil-saturation: 105%;
+  --env-glow-multiplier: 0.55;
+  --env-anim-duration-scale: 1.6;
+  /* Calm slows the platform's tempo across every breathing element */
+  --rhythm-quick: 5.4s;
+  --rhythm-mid:   9.2s;
+  --rhythm-slow:  14.4s;
+}
+:root[data-env-mode="cinematic"] {
+  --env-fog-opacity: 0.92;
+  --env-veil-saturation: 150%;
+  --env-glow-multiplier: 1.35;
+  --env-anim-duration-scale: 1;
+  /* Cinematic only mildly quickens the rhythm — we still want stillness */
+  --rhythm-quick: 2.6s;
+  --rhythm-mid:   4.4s;
+  --rhythm-slow:  7.2s;
+}
+
+/* Calm mode further mutes ring opacity beyond just slowing rhythm */
+:root[data-env-mode="calm"] .anim-pulse-ring,
+:root[data-env-mode="calm"] .anim-pulse-ring-slow {
+  opacity: 0.5;
+}
+:root[data-env-mode="cinematic"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(34, 211, 238, 0.075), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(168, 85, 247, 0.065), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.6), transparent 70%),
+    var(--color-void);
+}
+:root[data-env-mode="calm"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(34, 211, 238, 0.022), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(168, 85, 247, 0.018), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.6), transparent 70%),
+    var(--color-void);
+}
+:root[data-env-mode="cinematic"] .veil,
+:root[data-env-mode="cinematic"] .veil-soft {
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+:root[data-env-mode="calm"] .veil,
+:root[data-env-mode="calm"] .veil-soft {
+  backdrop-filter: blur(12px) saturate(105%);
+  -webkit-backdrop-filter: blur(12px) saturate(105%);
+}
+body, .veil, .veil-soft, .surface, .surface-strong {
+  transition: background 600ms cubic-bezier(0.16, 1, 0.3, 1),
+              backdrop-filter 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------- Worldspace · route mood ----------
+ * Each route family carries a different operational temperament. The mood
+ * attribute is set by Worldspace from the current pathname. We adjust the
+ * body radial bloom + worldspace vignette intensity so the analyst feels
+ * each room differently the moment they enter.
+ */
+:root[data-route-mood="graph"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(34, 211, 238, 0.060), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(168, 85, 247, 0.050), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.65), transparent 70%),
+    var(--color-void);
+}
+:root[data-route-mood="analytical"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(245, 158, 11, 0.035), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(34, 211, 238, 0.030), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.55), transparent 70%),
+    var(--color-void);
+}
+:root[data-route-mood="reading"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(34, 211, 238, 0.025), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(168, 85, 247, 0.018), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(20, 25, 40, 0.45), transparent 70%),
+    var(--color-void);
+}
+
+.worldspace-vignette {
+  pointer-events: none;
+  transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.85;
+}
+:root[data-route-mood="reading"] .worldspace-vignette { opacity: 0.45; }
+:root[data-route-mood="analytical"] .worldspace-vignette { opacity: 0.65; }
+:root[data-route-mood="graph"] .worldspace-vignette { opacity: 0.85; }
+
+/* ---------- Worldspace · focus state ----------
+ * When focus mode is on, the world recedes around the graph. We compress the
+ * body atmosphere intensity, deepen the vignette, and slow the breathing of
+ * any always-on animations. Coordinated, not staggered — the analyst should
+ * feel the scene reset around them, not watch a checklist of fades.
+ */
+:root[data-focus="on"] .worldspace-vignette { opacity: 1; }
+:root[data-focus="on"] body {
+  background:
+    radial-gradient(900px 700px at 8% -10%, rgba(168, 85, 247, 0.035), transparent 60%),
+    radial-gradient(800px 600px at 95% 110%, rgba(34, 211, 238, 0.025), transparent 60%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(10, 13, 20, 0.85), transparent 70%),
+    var(--color-void);
+}
+:root[data-focus="on"] .surface,
+:root[data-focus="on"] .surface-strong {
+  /* Even content-bearing surfaces feel a touch more recessive in focus mode */
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.010), transparent 60%),
+    rgba(10, 13, 19, 0.74);
+}
+
+/* ---------- Worldspace · risk tier undertone ----------
+ * The selected entity's tier breathes a faint colored undertone into the
+ * fog. Critical = rose, high = amber, medium/low = base. Strength is
+ * deliberately small (≈4–6% alpha) so it reads as room temperature, not
+ * as a visual alert.
+ */
+:root[data-tier="critical"] .depth-fog {
+  filter: hue-rotate(-12deg) saturate(125%);
+}
+:root[data-tier="high"] .depth-fog {
+  filter: hue-rotate(-4deg) saturate(115%);
+}
+
+/* ---------- Spatial dimensionality ----------
+ * Floating surfaces lift off the world. Combined with the parallax fog,
+ * this gives the platform a sense of "inside space" rather than painted on.
+ */
+.surface, .surface-strong {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.012) inset,
+    0 28px 60px -40px rgba(0, 0, 0, 0.85);
+}
+:root[data-focus="on"] .surface,
+:root[data-focus="on"] .surface-strong {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.008) inset,
+    0 38px 80px -42px rgba(0, 0, 0, 0.95);
+}
+
+/* ---------- Adaptive chrome ----------
+ * Chrome that lives over the graph drops to a quiet ambient opacity after
+ * the cursor has been still for a moment. Hover anywhere on the chrome
+ * itself restores full opacity. This is the "interface disappears" rule.
+ */
+.chrome-adaptive {
+  opacity: 1;
+  transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.chrome-adaptive[data-faded="true"] {
+  opacity: 0.32;
+}
+.chrome-adaptive[data-faded="true"]:hover {
+  opacity: 1;
+  transition-duration: 220ms;
+}
+
+/* ---------- Behavioral depth layers ----------
+ * Foreground = sharpest response (button presses, popovers, focused panels).
+ * Midground = softer (panel chrome, secondary affordances).
+ * Background = environmental (atmosphere, world layers).
+ * Apply via class — each layer takes a different transition tempo so the
+ * platform behaves like layered space, not a flat surface. */
+.layer-fg {
+  transition-property: opacity, transform, background-color, color, border-color, box-shadow;
+  transition-duration: var(--depth-fg-duration);
+  transition-timing-function: var(--depth-fg-ease);
+}
+.layer-mid {
+  transition-property: opacity, transform, background-color, color, border-color, box-shadow;
+  transition-duration: var(--depth-mid-duration);
+  transition-timing-function: var(--depth-mid-ease);
+}
+.layer-bg {
+  transition-property: opacity, transform, background, filter;
+  transition-duration: var(--depth-bg-duration);
+  transition-timing-function: var(--depth-bg-ease);
+}
+
+/* ---------- Density-aware atmosphere ----------
+ * Worldspace darkens with topology density (more discovered entities = denser
+ * air) and with severity (critical tier in focus = colder, deeper darkness).
+ * Both knobs are CSS custom properties set imperatively by Worldspace from
+ * store state — no React render needed to change atmosphere intensity.
+ */
+:root {
+  --world-density: 0;          /* 0..1 — discovery progress */
+  --world-severity: 0;         /* 0..1 — selected tier weight */
+}
+.worldspace-vignette {
+  /* Base opacity ramps with density + severity. Capped so it never goes
+   * fully opaque — the world deepens, it doesn't black out. */
+  opacity: calc(0.55 + var(--world-density) * 0.18 + var(--world-severity) * 0.22);
+}
+:root[data-route-mood="reading"] .worldspace-vignette {
+  opacity: calc(0.35 + var(--world-density) * 0.10 + var(--world-severity) * 0.12);
+}
+:root[data-route-mood="analytical"] .worldspace-vignette {
+  opacity: calc(0.50 + var(--world-density) * 0.14 + var(--world-severity) * 0.16);
+}
+:root[data-route-mood="graph"] .worldspace-vignette {
+  opacity: calc(0.65 + var(--world-density) * 0.18 + var(--world-severity) * 0.22);
+}
+
+@keyframes depth-drift {
+  0%   { transform: translate3d(0%, 0%, 0) scale(1); }
+  50%  { transform: translate3d(1.5%, -1%, 0) scale(1.03); }
+  100% { transform: translate3d(-1%, 1.2%, 0) scale(1.015); }
+}
+
+/* Scanlines + tactical noise */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 2px,
+    rgba(255, 255, 255, 0.012) 2px,
+    rgba(255, 255, 255, 0.012) 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+.tactical-noise {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 0.045 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.6;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* Scrollbar */
+.scroll-tactical::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scroll-tactical::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-tactical::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.10);
+  border-radius: 999px;
+}
+.scroll-tactical::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.35);
+}
+
+/* ---------- Glow utilities ---------- */
+.glow-ice {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.22),
+    0 0 32px -4px rgba(34, 211, 238, 0.45);
+}
+.glow-amber {
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.25),
+    0 0 32px -4px rgba(245, 158, 11, 0.45);
+}
+.glow-rose {
+  box-shadow:
+    0 0 0 1px rgba(244, 63, 94, 0.25),
+    0 0 32px -4px rgba(244, 63, 94, 0.45);
+}
+.glow-violet {
+  box-shadow:
+    0 0 0 1px rgba(168, 85, 247, 0.25),
+    0 0 32px -4px rgba(168, 85, 247, 0.5);
+}
+.glow-soft-ice {
+  box-shadow: 0 0 20px -2px rgba(34, 211, 238, 0.25);
+}
+
+/* ---------- Animation primitives — quieter, more ambient ----------
+ * Operational silence: pulse rings start much fainter than before
+ * (0.32 / 0.18 instead of 0.5 / 0.28) and ride the shared rhythm vars.
+ * The platform should feel confident enough to remain quiet.
+ */
+@keyframes pulse-ring {
+  0% { transform: scale(0.92); opacity: 0.32; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes pulse-ring-slow {
+  0% { transform: scale(0.88); opacity: 0.18; }
+  100% { transform: scale(2.0); opacity: 0; }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+@keyframes drift-y {
+  0%, 100% { transform: translateY(-2%); }
+  50%      { transform: translateY(2%); }
+}
+
+@keyframes ticker-in {
+  0% { transform: translateY(8px); opacity: 0; filter: blur(2px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.06); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  44%      { opacity: 1; }
+  47%      { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+@keyframes shockwave {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(20); opacity: 0; }
+}
+
+@keyframes title-rise {
+  0%   { transform: translateY(24px); opacity: 0; letter-spacing: 0.6em; filter: blur(8px); }
+  100% { transform: translateY(0);    opacity: 1; letter-spacing: 0.22em; filter: blur(0); }
+}
+
+@keyframes type-line {
+  0%   { width: 0; opacity: 0; }
+  20%  { opacity: 1; }
+  100% { width: 100%; opacity: 1; }
+}
+
+.anim-pulse-ring        { animation: pulse-ring var(--rhythm-quick) cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+.anim-pulse-ring-slow   { animation: pulse-ring-slow var(--rhythm-slow) cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+.anim-drift             { animation: drift var(--rhythm-mid) ease-in-out infinite; }
+.anim-drift-y           { animation: drift-y calc(var(--rhythm-slow) * 1.6) ease-in-out infinite; }
+.anim-breathe           { animation: breathe var(--rhythm-slow) ease-in-out infinite; }
+.anim-flicker           { animation: flicker 8s linear infinite; }
+.anim-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.35) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ---------- Surface primitives — AMBIENT, not bordered ----------
+ * The new surface philosophy: information emerges from depth, not from
+ * a box. Surfaces are tonal pools with a soft inner glow + radial fade,
+ * no hairline border by default. Hover/active states are tonal shifts,
+ * not stroke changes.
+ */
+
+.surface {
+  /* Depth-only — no border. A subtle radial light bloom from the top center
+     gives the analyst a sense of "this region exists" without framing it. */
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.018), transparent 60%),
+    rgba(10, 13, 19, 0.62);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border-radius: 10px;
+}
+
+.surface-strong {
+  background:
+    radial-gradient(140% 100% at 50% 0%, rgba(255, 255, 255, 0.024), transparent 60%),
+    rgba(13, 16, 23, 0.86);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  border-radius: 10px;
+}
+
+.surface-floating {
+  /* Floating modals + overlays still get a faint stroke at 0.06 + a deep
+     under-shadow so they read as elevated without looking boxy. */
+  background:
+    radial-gradient(160% 120% at 50% 0%, rgba(255, 255, 255, 0.026), transparent 70%),
+    rgba(7, 9, 14, 0.74);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border-radius: 12px;
+  box-shadow:
+    0 40px 80px -40px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.015) inset;
+}
+
+/* Legacy panel aliases — match the new philosophy. */
+.panel {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.018), transparent 60%),
+    rgba(10, 13, 19, 0.62);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border-radius: 10px;
+}
+.panel-soft {
+  background: rgba(14, 18, 25, 0.40);
+  border-radius: 8px;
+}
+
+/* Veil — for ambient overlays that drift over the graph. Lighter touch
+   than .surface — used by TacticalRail, WorkspaceTabs, etc. */
+.veil {
+  background:
+    radial-gradient(180% 140% at 50% 0%, rgba(255, 255, 255, 0.022), transparent 65%),
+    rgba(7, 9, 14, 0.55);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border-radius: 999px;
+}
+.veil-soft {
+  background:
+    radial-gradient(160% 120% at 50% 0%, rgba(255, 255, 255, 0.014), transparent 70%),
+    rgba(7, 9, 14, 0.42);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  border-radius: 12px;
+}
+
+/* Divider — atmospheric hairline */
+.divider-h {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(148, 163, 184, 0.16),
+    transparent
+  );
+}
+
+.divider-v {
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(148, 163, 184, 0.16),
+    transparent
+  );
+}
+
+/* Chip & micro-typography — quieter, borderless by default */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--color-text-secondary);
+}
+
+.chip-ice    { color: var(--color-ice-400);   background: rgba(34,211,238,0.07); }
+.chip-amber  { color: var(--color-amber-400); background: rgba(245,158,11,0.07); }
+.chip-rose   { color: var(--color-rose-400);  background: rgba(244,63,94,0.07); }
+.chip-violet { color: var(--color-violet-400);background: rgba(168,85,247,0.07); }
+.chip-emerald{ color: var(--color-emerald-400);background: rgba(16,185,129,0.07); }
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--color-line);
+  color: var(--color-text-secondary);
+}
+
+.label-tactical {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: lowercase;
+  color: var(--color-text-muted);
+}
+
+.heading-tactical {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.text-mono { font-family: var(--font-mono); }
+
+.dotted-line {
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.4) 1px, transparent 1px);
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  height: 1px;
+}
+
+/* Reticle (used in mode select / boot) */
+.reticle {
+  position: relative;
+}
+.reticle::before, .reticle::after {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--color-ice-400);
+  opacity: 0.6;
+}
+.reticle::before { top: -1px; left: -1px;  border-top: 1px solid; border-left: 1px solid; }
+.reticle::after  { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; }
+
+/* Shockwave ring — used on ring.detected and hidden.relationship */
+.shockwave {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-ice-400);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: shockwave 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.shockwave-rose   { border-color: var(--color-rose-400); }
+.shockwave-violet { border-color: var(--color-violet-400); }
+.shockwave-amber  { border-color: var(--color-amber-400); }
+
+/* Title typography */
+.title-display {
+  font-family: var(--font-sans);
+  font-weight: 200;
+  letter-spacing: 0.22em;
+}
+
+.text-shadow-deep {
+  text-shadow: 0 0 28px rgba(34, 211, 238, 0.45), 0 2px 22px rgba(0, 0, 0, 0.5);
 }
