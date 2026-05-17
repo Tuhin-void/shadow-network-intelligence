@@ -811,6 +811,43 @@ def promote_upload(request: Request, upload_id: str) -> dict:
                 total_upserted += int(r.get("loadSuccess") or 0)
         elapsed_s = round(time.time() - t0, 2)
 
+        # Build operator-facing warnings when TG accepted fewer rows than we
+        # sent. The most common cause is that an edge references a from/to
+        # vertex ID that doesn't exist in TG yet (silent server-side reject).
+        # We surface this explicitly so the operator never sees a green
+        # HTTP 200 mask a partial ingest.
+        edge_warnings: list[dict] = []
+        load_failure = total_records - total_upserted
+        if load_failure > 0:
+            edge_warnings.append({
+                "code":     "edge_load_failure",
+                "severity": "warning",
+                "message":  (
+                    f"TigerGraph accepted {total_upserted} of {total_records} "
+                    f"edges. The remaining {load_failure} were rejected — the "
+                    "most common cause is a from/to vertex ID that doesn't "
+                    "exist in TG yet. Promote the vertex CSV first (or use "
+                    "POST /ingest/promote-ecosystem so vertices precede edges "
+                    "automatically), then re-promote this edge file."
+                ),
+                "rejected_count": load_failure,
+                "per_batch": [
+                    {
+                        "edge_type":  br["edge_type"],
+                        "from_type":  br["from_type"],
+                        "to_type":    br["to_type"],
+                        "sent":       br["records"],
+                        "accepted":   int((br.get("result") or {}).get("loadSuccess") or 0)
+                                       if isinstance(br.get("result"), dict) else 0,
+                        "error":      (br.get("result") or {}).get("error")
+                                       if isinstance(br.get("result"), dict) else None,
+                    }
+                    for br in batch_results
+                    if isinstance(br.get("result"), dict)
+                    and int((br["result"].get("loadSuccess") or 0)) < br["records"]
+                ],
+            })
+
         promotion = {
             "kind":           "edge",
             "edge_type":      detection.get("default_edge_type"),
@@ -818,11 +855,12 @@ def promote_upload(request: Request, upload_id: str) -> dict:
             "upserted":       total_upserted,
             "skipped":        skipped,
             "batch_results":  batch_results,
+            "warnings":       edge_warnings,
             "elapsed_s":      elapsed_s,
             "promoted_at":    time.time(),
         }
         result = {"loadSuccess": total_upserted,
-                  "loadFailure": total_records - total_upserted,
+                  "loadFailure": load_failure,
                   "batches":     len(batch_results)}
 
     m["promoted"] = True
@@ -857,6 +895,7 @@ def promote_upload(request: Request, upload_id: str) -> dict:
         "records":       promotion["records"],
         "skipped":       len(promotion.get("skipped") or []),
         "tg_response":   result,
+        "warnings":      promotion.get("warnings") or [],
         "elapsed_s":     promotion["elapsed_s"],
         "vertex_counts": counts,
         "activation":    get_activation().current().to_dict(),
@@ -922,10 +961,21 @@ def promote_ecosystem(request: Request, body: _EcosystemRequest) -> dict:
     except Exception:
         counts = None
 
+    # Aggregate per-stage warnings to the ecosystem level so the operator
+    # sees a single warnings list rather than having to spelunk each stage.
+    aggregated_warnings: list[dict] = []
+    for stage in stages:
+        for w in stage.get("warnings") or []:
+            aggregated_warnings.append({
+                "upload_id": stage.get("upload_id"),
+                **w,
+            })
+
     return {
         "stages":         stages,
         "ordering":       {"vertices_first": vertex_ids, "edges_after": edge_ids,
                            "unrecognized":   unknown},
+        "warnings":       aggregated_warnings,
         "elapsed_s":      round(time.time() - t0, 2),
         "vertex_counts":  counts,
     }

@@ -1,73 +1,96 @@
-# React + TypeScript + Vite
+# Shadow Network Intelligence — Dashboard (`8_dashboard_ui`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The operator-facing dashboard for the GraphRAG investigation platform.
+React 19 + TypeScript + Vite 8 + TailwindCSS + Cytoscape + Framer Motion.
 
-Currently, two official plugins are available:
+This module is one of three independently runnable surfaces in the
+project — see the root `README.md` for the platform-level overview and
+the `10_research/` directory for design rationale.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Role in the platform
 
-## React Compiler
+The dashboard is a **thin operator UI** over the orchestrator API at
+`http://localhost:8000/api/v1`. It does not implement retrieval,
+benchmarking, or ingestion logic — every action issues an HTTP call
+against the FastAPI orchestrator (`4_orchestrator_api`). All
+state-bearing logic lives server-side; the UI is responsible only for
+visualizing the platform's truth.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Major routes:
 
-## Expanding the ESLint configuration
+- `/` — Command Center (active case, operations panel, recent sessions)
+- `/investigate` — Manual Workstation (graph canvas, suspect rail,
+  streaming timeline, evidence panel, cognitive reasoning)
+- `/benchmark` — Shootout (Scenario walkthrough · Evidence panel ·
+  live `/benchmark/run/stream` console)
+- `/sources` — Activation lifecycle, uploads, schema detection,
+  ecosystem promotion, readiness gates
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Every route is wrapped in an `ErrorBoundary` so a render error in one
+view never blacks out the navigation chrome.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Running locally
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+```bash
+# From the repo root — install Python + Node deps
+make install-all
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start the backend (terminal 1)
+make demo-backend          # http://localhost:8000
+
+# Start this dashboard (terminal 2)
+make dev-frontend          # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open `http://localhost:5173`. The TopBar status pill flips to `LIVE`
+once the orchestrator responds. The default landing is the deliberate
+"Launch Sample Fraud Ecosystem" empty state — click it to activate and
+the rest of the UI lights up.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Environment
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The dashboard reads two Vite build-time variables (both optional):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:8000` | orchestrator base URL |
+| `VITE_API_PREFIX` | `/api/v1` | API path prefix |
+
+Override these in `8_dashboard_ui/.env` for non-localhost deploys
+(Vite reads them at build time, not runtime — restart `npm run dev`
+after editing).
+
+## Requirements
+
+- **Node.js 18+** (enforced via `package.json` `engines` field)
+- npm 9+ (or compatible package manager)
+- The orchestrator API running at the configured `VITE_API_BASE_URL`
+
+## Scripts
+
+```bash
+npm run dev       # Vite dev server with HMR
+npm run build     # tsc -b && vite build → dist/
+npm run preview   # Serve the production build locally
+npm run lint      # eslint against the source tree
 ```
+
+`make type-check` at the repo root runs `tsc --noEmit` over this
+package for CI-style type validation.
+
+## Architecture notes
+
+- **State:** `zustand` (`src/store/intel-store.ts`) with selective
+  persistence. No Redux, no React Context for app state.
+- **API layer:** `src/lib/api-client.ts` is the single point of
+  contact with the orchestrator; downstream adapters reshape API
+  responses into view-model types in `src/lib/adapters/`.
+- **Graph rendering:** Cytoscape via `react-cytoscapejs`. Atmosphere
+  effects (Worldspace) persist across route changes so layout state
+  survives navigation.
+- **Streaming:** Server-Sent Events for `/investigate/stream`,
+  `/investigate/deep/stream`, `/benchmark/run/stream`, and the demo
+  presets. Parsed in `src/lib/sse-client.ts` with explicit
+  per-event-type handlers.
+- **Error containment:** Per-route `ErrorBoundary` (see
+  `src/components/shared/ErrorBoundary.tsx`).

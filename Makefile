@@ -165,12 +165,15 @@ docker-down:
 docker-logs:
 	docker compose logs -f
 
-# Generate sample data
+# Generate sample data. Canonical entrypoint is the `1_data_engine` package
+# (see 1_data_engine/__main__.py). The legacy `generators/main_generator.py`
+# script was removed when the new pipeline was promoted; this target uses
+# the new pipeline exclusively.
 generate-data:
-	cd 1_data_engine/generators && python main_generator.py --size small
+	python -m 1_data_engine generate --profile small --new-pipeline
 
 generate-data-full:
-	cd 1_data_engine/generators && python main_generator.py --size full
+	python -m 1_data_engine generate --profile hackathon_default --new-pipeline
 
 # Build the semantic intelligence corpus (deterministic, no LLM calls).
 # Reads outputs/{profile}/csv/, writes outputs/{profile}/enriched_corpus/.

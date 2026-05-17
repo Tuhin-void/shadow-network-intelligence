@@ -5,12 +5,12 @@
 ### *The answer is an edge, not a sentence.*
 
 A research-grade **GraphRAG** investigation platform built on a live
-**TigerGraph Cloud** graph (175k vertices · 373k edges · 6 populated
+**TigerGraph Cloud** graph (175,204 vertices · 373,439 edges · 6 populated
 reverse-edge types), with three side-by-side retrieval paradigms,
 operator-controlled environment activation, and a disclosure-first
 benchmark surface.
 
-[![tests](https://img.shields.io/badge/tests-74%20%2F%2074%20passing-10b981?style=flat-square)](#tests--reproducibility)
+[![tests](https://img.shields.io/badge/tests-82%20%2F%2082%20passing-10b981?style=flat-square)](#tests--reproducibility)
 [![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](#tech-stack)
 [![react](https://img.shields.io/badge/react-19-61dafb?style=flat-square&logo=react&logoColor=black)](#tech-stack)
 [![tigergraph](https://img.shields.io/badge/tigergraph-cloud-orange?style=flat-square)](#live-tigergraph-topology)
@@ -74,15 +74,15 @@ files are numbered in the order they were written; the headline read is
 
 |  | What |
 |---|---|
-| **Live substrate** | TigerGraph Cloud · `ShadowGraph` · 175,215 vertices · 373,439 edges · 7 vertex types · 19 forward + 6 reverse edge types · 2 installed GSQL queries (`tg_ring_members`, `tg_shortest_path`) |
+| **Live substrate** | TigerGraph Cloud · `ShadowGraph` · 175,204 vertices · 373,439 edges · 7 vertex types · 19 forward + 6 reverse edge types · 2 installed GSQL queries (`tg_ring_members`, `tg_shortest_path`) |
 | **Three pipelines, same queries** | `PureLLM`, `VectorRAG` (ChromaDB), `GraphRAG` (TigerGraph traversal + topology-aware rerank + ring-member promotion + 2nd-hop hidden-relationship expansion) |
 | **Adversarial structural eval** | 20 queries hand-picked to require multi-hop traversal or hidden-edge recovery. GraphRAG surfaces ≥3 typed structural edges on every query. VectorRAG and PureLLM hit a definitional ceiling of 0 — categorically argued in [`04_vectorrag_limitations.md`](./10_research/04_vectorrag_limitations.md), not just measured |
 | **3-pipeline measured run** | Real chroma + tigergraph + mock LLM, 5 queries: GraphRAG injects **~11× less prompt context** than VectorRAG (50 vs 554 tokens / query) while paying real graph-traversal cost (~8s cold, <50ms warm cache) |
 | **Semantic enrichment corpus** | 35,402 templated AML/compliance documents · 6.1M tokens · 25,238 real graph IDs referenced · pure-Python, deterministic, no LLM cost |
 | **Environment lifecycle** | Operator-controlled activation: `empty → sample → uploaded → hybrid → offline`. Default boot = empty; live-retrieval endpoints return HTTP 409 with structured `next_steps` hint until activated |
 | **Evaluator resilience** | Live TG ⇄ OfflineFallback ⇄ artifact-replay all routed by a single `GraphClient` with loud-banner mode switching. Read-only endpoints (artifact JSON, archive, intent) stay available regardless of activation |
-| **Disclosure surface** | Every benchmark response carries a `disclosure` block naming what is mock, what is cold, and what is estimated. Failure cases register at [`09_failure_cases.md`](./10_research/09_failure_cases.md) |
-| **Tests** | 74 unit tests in **0.4 s**, no TigerGraph or network required. Covers schema detection, topology rerank, benchmark aggregator, activation lifecycle, gate, offline continuity, intent classifier |
+| **Disclosure surface** | Every benchmark API response carries a `disclosure` block naming what is mock, what is cold, and what is estimated (synthesized at response time by `4_orchestrator_api/api/benchmark.py`). Failure cases register at [`09_failure_cases.md`](./10_research/09_failure_cases.md) |
+| **Tests** | 82 unit tests in **~0.4 s**, no TigerGraph or network required. Covers schema detection, topology rerank, benchmark aggregator, activation lifecycle, gate, offline continuity, intent classifier, liveness probe, ingest detection |
 
 ---
 
@@ -124,8 +124,8 @@ flowchart TB
     end
 
     subgraph Substrate["Live substrate"]
-        TG[(TigerGraph Cloud<br/>ShadowGraph · 175k vertices)]
-        CSV[(outputs/profile/csv<br/>OfflineFallback index)]
+        TG[(TigerGraph Cloud<br/>ShadowGraph · 175,204 vertices)]
+        CSV[(outputs/profile/csv<br/>OfflineFallback index<br/>bounded subset)]
     end
 
     subgraph Bench2["2_baseline_systems"]
@@ -320,10 +320,10 @@ HTTP/1.1 409 Conflict
 | State | `mode` | `total_vertices` (effective) | Live retrieval | Read-only artifacts |
 |---|---|---:|:---:|:---:|
 | `empty` | `empty` | 0 | ❌ 409 + hint | ✅ |
-| `sample` | `live_tigergraph` | 175,215 | ✅ | ✅ |
-| `uploaded` | `live_tigergraph` | 175,215 + N | ✅ | ✅ |
+| `sample` | `live_tigergraph` | 175,204 | ✅ | ✅ |
+| `uploaded` | `live_tigergraph` | 175,204 + N | ✅ | ✅ |
 | `hybrid` | `live_tigergraph` | merged | ✅ | ✅ |
-| `offline` | `offline_local_dataset` | local CSV index | ⚠️ degraded | ✅ |
+| `offline` | `offline_local_dataset` | local CSV index (bounded) | ⚠️ degraded | ✅ |
 
 **Activation is a UX gate, not a physical scope.** The underlying TG
 graph is preserved across activations. `/ingest/environment` exposes
@@ -332,9 +332,15 @@ can confirm activation never mutates TG.
 
 <p align="center"><em>Before / after — the same Sources page, before and after the operator clicks Launch:</em></p>
 
-<!-- SCREENSHOT_SLOT: lifecycle-empty.png · empty landing · width=90% · framing notes: docs/screenshots/README.md#4 -->
+<p align="center">
+  <img src="docs/screenshots/lifecycle-empty.png" width="90%" alt="empty landing">
+  <br><sub><em>empty landing</em></sub>
+</p>
 
-<!-- SCREENSHOT_SLOT: lifecycle-activated.png · sample activated · width=90% · framing notes: docs/screenshots/README.md#5 -->
+<p align="center">
+  <img src="docs/screenshots/lifecycle-activated.png" width="90%" alt="sample activated">
+  <br><sub><em>sample activated</em></sub>
+</p>
 
 ---
 
@@ -394,6 +400,22 @@ Vertices are upserted before edges automatically. Successful promotion
 auto-flips activation to `uploaded` (or `hybrid` if sample was already
 active). Promoted vertices are also indexed into `OfflineFallback` so
 the upload remains investigatable during a subsequent TG outage.
+
+**Partial-ingest transparency.** When TigerGraph rejects edges (most
+commonly because a from/to vertex doesn't exist yet), the response
+surfaces an explicit `warnings[]` block — never a silent green-200. Each
+warning names the rejected count, per-batch breakdown, and the most
+likely fix:
+
+```json
+"warnings": [{
+  "code": "edge_load_failure",
+  "severity": "warning",
+  "message": "TigerGraph accepted 8 of 12 edges. The remaining 4 were rejected — the most common cause is a from/to vertex ID that doesn't exist in TG yet. Promote the vertex CSV first ...",
+  "rejected_count": 4,
+  "per_batch": [{"edge_type": "OWNS", "sent": 12, "accepted": 8, ...}]
+}]
+```
 
 <!-- SCREENSHOT_SLOT: ingestion-promote.png · ecosystem upload + promote · width=90% · framing notes: docs/screenshots/README.md#6 -->
 
@@ -463,7 +485,10 @@ $ curl -X POST http://localhost:8000/api/v1/investigate \
 }
 ```
 
-<!-- SCREENSHOT_SLOT: investigation-ring.png · ring discovery in the workstation UI · width=90% · framing notes: docs/screenshots/README.md#7 -->
+<p align="center">
+  <img src="docs/screenshots/investigation-ring.png" width="90%" alt="ring discovery in the workstation UI">
+  <br><sub><em>ring discovery in the workstation UI</em></sub>
+</p>
 
 ---
 
@@ -473,14 +498,18 @@ Validated by `scripts/tigergraph_validate.py` against the live `ShadowGraph`:
 
 | Vertex type | Count |
 |---|---:|
-| Person | 6,003 |
+| Person | 6,000 |
 | Company | 5,000 |
 | Account | 10,000 |
 | Address | 4,000 |
 | Device | 150 |
 | Transaction | 150,054 |
 | FraudRing | (variable) |
-| **Total** | **175,207+** |
+| **Total** | **175,204** |
+
+> Numbers are from `scripts/tigergraph_validation.json` (live snapshot
+> against `ShadowGraph`). Re-run `python3 scripts/tigergraph_validate.py`
+> to refresh.
 
 | Edge type | Direction | Count (live) |
 |---|---|---:|
@@ -547,6 +576,41 @@ WARNING:clients.graph_client:═════════════════
 Self-healing via `POST /orchestrator/reconnect` or the rate-limited
 auto-retry in `/orchestrator/status`.
 
+### What OfflineFallback IS — and isn't
+
+OfflineFallback is a **bounded local replacement** for live retrieval,
+not a mirror of the TG graph. It indexes a deterministic slice of the
+local dataset under `outputs/{profile}/csv/`:
+
+| Entity type | Indexed cap | Source |
+|---|---:|---|
+| Person | 5,000 | `persons.csv` |
+| Company | 5,000 | `companies.csv` |
+| Account | 10,000 | `accounts.csv` |
+| Transaction | 5,000 | `transactions.csv` |
+| Edges | unbounded (per indexed entity) | `*_edges.csv` |
+
+Source of truth: `3_graph_intelligence_core/clients/graph_client.py::OfflineFallback.init_from_dataset`.
+
+What that means operationally:
+
+- **Investigations work** against real entity IDs and real edge
+  relationships from the local CSV — not synthetic stubs.
+- **Multi-hop traversal works** but only across the indexed slice; a
+  query that depends on a Person beyond the 5,000-row cap will silently
+  miss it.
+- **Ring membership works** when ring members fall within the indexed
+  caps (the sample profile is well within them).
+- **Topology rerank still runs** — neighbor risk and ring-touch features
+  are computed against the offline index.
+- **Replay is honest** — the env-snapshot chip on Recent Investigations
+  records whether the original run was live or offline so drift is
+  visible at re-run time.
+
+Profiles larger than the caps (e.g. `benchmark_dense`) will *not* fit
+fully into OfflineFallback; the live TG path remains the authoritative
+substrate for those.
+
 <!-- SCREENSHOT_SLOT: degraded-mode.png · honest offline UI · width=90% · framing notes: docs/screenshots/README.md#8 -->
 
 ---
@@ -579,7 +643,7 @@ make dev-frontend       # dashboard on :5173
 
 # Sanity check (separate terminal):
 make smoke-test         # probes /health, /orchestrator/status, /intent
-make test               # 74 unit tests in ~0.4s, no TG required
+make test               # 82 unit tests in ~0.4s, no TG required
 ```
 
 `make dev-backend` keeps the previously-persisted activation state;
@@ -621,7 +685,7 @@ python3 scripts/benchmark_full_report.py --profile small
 
 ```bash
 $ make test
-============================== 74 passed in 0.42s ==============================
+============================== 82 passed in 0.44s ==============================
 ```
 
 | Test file | What it locks in |
@@ -632,6 +696,7 @@ $ make test
 | `test_schema_def.py` | 7-vertex / 19-edge surface · per-type ring edges · deprecated-edge guard |
 | `test_entity_matcher.py` | Every documented ID prefix · empty-ground-truth convention |
 | `test_offline_continuity.py` | OfflineFallback returns real vertices · health reports `mode=OFFLINE` |
+| `test_liveness_probe.py` | Probe true/false on echo · offline flip · cache TTL · timeout bound · no-spam log |
 | `test_ingest_detection.py` | Filename-first detection · alias variants · all 6 ring-edge filenames · edge record builder |
 | `test_environment_activation.py` | Empty boot · auto-hybrid · clear · disk persistence · reset env var |
 | `test_activation_gate.py` | 409 + structured hint when empty · passes after activation · re-blocks after clear |
@@ -666,7 +731,7 @@ Shadow_Network_Intelligence/
 ├── docs/                         API reference · architecture · benchmark method · quick start
 ├── shared/                       cross-module utilities (constants · prompts · logging)
 ├── outputs/                      generated data · benchmark artifacts · uploads · activation state
-├── tests/                        unit + integration tests (74 passing)
+├── tests/                        unit + integration tests (82 passing)
 │
 ├── .env.example                  canonical env template
 ├── CLAUDE.md                     guidance for Claude-Code contributors
@@ -712,7 +777,7 @@ Shadow_Network_Intelligence/
 | LLM | Mock by default (deterministic) · Anthropic / OpenAI / Ollama via `LLMClient` |
 | API | FastAPI + uvicorn + SSE via `StreamingResponse` |
 | Frontend | React 19 + TypeScript + Vite 8 + zustand + cytoscape + framer-motion |
-| Tests | pytest 9 — 74 tests, ~0.4 s, no TG required |
+| Tests | pytest 9 — 82 tests, ~0.4 s, no TG required |
 | Deploy | Docker Compose ([`9_devops/`](./9_devops/)) |
 
 ---
