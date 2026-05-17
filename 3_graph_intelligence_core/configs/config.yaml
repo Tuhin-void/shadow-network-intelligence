@@ -1,15 +1,21 @@
+# NB: secrets and account identifiers MUST be empty here per the platform
+# contract (CLAUDE.md: "config.yaml passwords/secrets are always empty
+# strings — real values come only from .env"). The orchestrator overlays
+# the env vars at load time (see 3_graph_intelligence_core/configs/config.py
+# `load_config`), so leaving these empty is safe and required for the
+# repository to be checked in publicly without leaking real credentials.
 tigergraph:
-  host: "https://tg-6937a943-57ef-4bc3-88b0-3bce0d9a3290.tg-2635877100.i.tgcloud.io"
+  host: ""                # set via .env  TIGERGRAPH_HOST
   graph: "ShadowGraph"
   restpp_port: 443
-  username: "brooonotagain@gmail.com"
-  password: ""
+  username: ""            # set via .env  TIGERGRAPH_USERNAME (legacy auth only)
+  password: ""            # set via .env  TIGERGRAPH_PASSWORD (legacy auth only)
   use_ssl: true
-  gsql_secret: ""  # Canonical: TIGERGRAPH_GSQL_SECRET
+  gsql_secret: ""         # set via .env  TIGERGRAPH_GSQL_SECRET (canonical)
   deployment: "cloud"
 
 nim:
-  api_key: "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"
+  api_key: ""             # set via .env  NIM_API_KEY
   base_url: "https://integrate.api.nvidia.com/v1"
   llm_model: "nvidia/llama-3.1-nemotron-70b-instruct"
   embedding_model: "nvidia/llama-3.1-nemotron-70b-instruct"

@@ -147,18 +147,33 @@ def delete_session(request: Request, session_id: str):
 
 @router.get("/orchestrator/status")
 def orchestrator_status(request: Request):
-    """Status + opportunistic self-heal. If the GraphClient is offline,
-    attempt a rate-limited reconnect before returning the snapshot so the
-    long-running orchestrator recovers without a restart."""
+    """Truthful status + opportunistic self-heal.
+
+    Always probes TG liveness (cached for 10s) so the response reflects
+    the *current* TG state, not a stale flag from boot or the last
+    failed call. If the probe detects TG is unreachable, the offline
+    flag is flipped here — within seconds of TG pausing, the dashboard
+    sees the truth. If the probe succeeds while we were marked offline,
+    we additionally trigger a rate-limited reconnect to fully restore
+    the pyTigerGraph state.
+    """
     orch = _get_orch(request)
     client = getattr(orch, "_client", None)
-    if client is not None and getattr(client, "_offline_mode", True):
+    if client is not None:
+        # Proactive liveness probe — single source of truth for online state.
         try:
-            client.reconnect_if_offline()
+            client.probe_liveness()
         except Exception:
             pass
+        # If we were offline and the probe just succeeded, do a proper
+        # reconnect to restore the pyTigerGraph connection state.
+        if getattr(client, "_offline_mode", True):
+            try:
+                client.reconnect_if_offline()
+            except Exception:
+                pass
         # Refresh orch's cached offline flag so status() returns the
-        # post-reconnect state.
+        # post-probe state.
         orch._is_offline = getattr(client, "_offline_mode", True)
     return orch.status()
 

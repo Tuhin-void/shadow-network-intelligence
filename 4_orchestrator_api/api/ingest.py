@@ -1160,6 +1160,14 @@ def active_environment(request: Request, probe: bool = False) -> dict:
             reconnect_attempted=False, probe_failed=False, fresh_probe=False,
         )
 
+    # Proactive liveness probe — single source of truth for online state.
+    # Cached for 10s by default so the dashboard's 15s auto-poll stays
+    # cheap. `probe=true` forces a fresh probe (max_age_s=0).
+    try:
+        client.probe_liveness(max_age_s=0 if probe else 10.0)
+    except Exception:
+        pass
+
     reconnect_attempted = False
     if getattr(client, "_offline_mode", True):
         # Try to self-heal. The method is rate-limited internally so
@@ -1174,9 +1182,6 @@ def active_environment(request: Request, probe: bool = False) -> dict:
     counts: dict[str, int] = {}
     probe_failed = False
     if not offline:
-        # The cached `_offline_mode` flag is best-effort. When `probe=True`
-        # is set we force a real TG round-trip and treat a failure as
-        # honestly offline so the UI stops showing stale `online` state.
         try:
             counts = client.get_vertex_counts() or {}
         except Exception:

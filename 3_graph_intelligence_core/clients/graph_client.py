@@ -142,6 +142,13 @@ class GraphClient:
         self._cache_hits = 0
         self._cache_misses = 0
 
+        # Liveness probe cache (see `probe_liveness`). The probe runs a TG
+        # echo with a hard thread-bounded timeout so the orchestrator can
+        # detect a paused/stopped workspace within seconds instead of
+        # waiting for the next failed graph query.
+        self._last_probe_at: float = 0.0
+        self._last_probe_result: Optional[bool] = None
+
         # Initialize pyTigerGraph connection or fall back to offline
         if PYTIGERGRAPH_AVAILABLE:
             self._init_pyTigerGraph()
@@ -213,6 +220,120 @@ class GraphClient:
         except Exception as e:
             logger.warning(f"TigerGraph connectivity test failed: {e}")
             return False
+
+    def probe_liveness(self, max_age_s: float = 10.0, timeout_s: float = 3.0) -> bool:
+        """Proactive TG liveness probe with thread-bounded timeout.
+
+        The platform's lazy `_offline_mode` flag only flips when a graph
+        call fails — so a TG workspace that pauses while the system is
+        idle goes unnoticed until the next investigation. This method
+        gives callers (`/orchestrator/status`, `/ingest/environment`,
+        `/health`) a cheap, cached way to ask "is TG actually up RIGHT
+        NOW" and updates the offline flag accordingly.
+
+        Result caching: probes are cached for `max_age_s` seconds so a
+        15-second frontend poll doesn't hammer TG. Pass `max_age_s=0` to
+        force a fresh probe (e.g. when an operator clicks Reconnect).
+
+        Hard timeout: pyTigerGraph's underlying requests session has no
+        default timeout — when TG is paused, `echo()` can block for
+        30+ seconds. We bound the probe with `concurrent.futures` so
+        the status endpoint stays responsive (default 3 s cap).
+
+        Returns:
+            True iff TG echo succeeded within `timeout_s`. Side effect:
+            updates `self._offline_mode` to match the probe result, so
+            subsequent `_offline_mode` reads are accurate without
+            requiring another probe.
+        """
+        import concurrent.futures
+        now = time.time()
+        if (max_age_s > 0
+                and self._last_probe_at
+                and (now - self._last_probe_at) < max_age_s
+                and self._last_probe_result is not None):
+            return self._last_probe_result
+
+        self._last_probe_at = now
+
+        if self._tg_conn is None:
+            # Never had a connection — definitionally offline. Keep the
+            # offline flag truthful.
+            self._last_probe_result = False
+            if not self._offline_mode:
+                self._enable_offline_mode()
+            return False
+
+        def _do_echo() -> bool:
+            try:
+                self._tg_conn.echo()
+                return True
+            except Exception:
+                return False
+
+        # NOTE: do NOT use `with ThreadPoolExecutor(...) as ex:` here —
+        # the `with` block's __exit__ calls shutdown(wait=True), which
+        # blocks until the submitted task finishes. When TG is paused
+        # the echo() can block for tens of seconds, defeating our
+        # timeout. We construct the executor explicitly and call
+        # shutdown(wait=False) so the probe returns as soon as the
+        # timeout fires; the orphaned worker thread completes (or fails)
+        # in the background without blocking the caller.
+        ok = False
+        ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            fut = ex.submit(_do_echo)
+            try:
+                ok = fut.result(timeout=timeout_s)
+            except concurrent.futures.TimeoutError:
+                ok = False
+        except Exception:
+            ok = False
+        finally:
+            # Non-blocking shutdown — the worker thread either finished
+            # (no-op) or is still in the underlying socket call; either
+            # way we return immediately.
+            ex.shutdown(wait=False)
+
+        self._last_probe_result = ok
+
+        # Truthful state synchronization. We do NOT silently leave the
+        # offline flag stale, AND we do not flip back to online without
+        # rebuilding the pyTigerGraph connection — a successful echo can
+        # coexist with a stale auth-token state in `_tg_conn`, which
+        # would cause every subsequent graph call to fail with
+        # "Access Denied because input token is empty". The fix: trigger
+        # the full `reconnect_if_offline` path (which calls
+        # `_init_pyTigerGraph` → `getToken` → `_refresh_auth_headers`)
+        # so subsequent calls use a freshly-authenticated connection.
+        prev_offline = self._offline_mode
+        if ok and prev_offline:
+            logger.info(
+                "probe_liveness: TG echo succeeded — rebuilding pyTigerGraph "
+                "state to restore auth headers"
+            )
+            try:
+                # Bypass the reconnect cooldown — we just confirmed TG
+                # is reachable, no need to wait. reconnect_if_offline
+                # flips `_offline_mode` to False on success.
+                self.reconnect_if_offline(min_interval_s=0)
+            except Exception as e:
+                logger.warning(
+                    "probe_liveness: post-recovery reconnect failed: %s — "
+                    "remaining in offline mode (next probe will retry)",
+                    e,
+                )
+                # Keep `_last_probe_result` honest: if reconnect failed,
+                # the next env/status read should re-probe.
+                self._last_probe_at = 0.0
+        elif not ok and not prev_offline:
+            logger.warning(
+                "probe_liveness: TG echo failed (timeout=%.1fs) — engaging offline mode",
+                timeout_s,
+            )
+            self._enable_offline_mode()
+
+        return ok
 
     def _enable_offline_mode(self) -> None:
         """Enable offline fallback mode."""
