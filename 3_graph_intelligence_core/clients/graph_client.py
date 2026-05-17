@@ -220,7 +220,23 @@ class GraphClient:
             self._offline_mode = True
             if self.dataset and not self._offline_fallback._initialized:
                 self._offline_fallback.init_from_dataset(self.dataset)
-            logger.warning("TigerGraph unreachable — switched to offline fallback mode")
+            # Loud, single-line operator banner. Engaging fallback silently
+            # would let a demo run for minutes against local CSV without
+            # the operator realizing TG is down — this prevents that.
+            logger.warning(
+                "════════════════════════════════════════════════════════════════"
+            )
+            logger.warning(
+                "  TigerGraph unreachable — engaging OfflineFallback (local CSV)"
+            )
+            logger.warning(
+                "  Investigations, benchmarks, and traversal will still run, "
+                "but against the local dataset — NOT live TigerGraph. "
+                "Health endpoint will report mode=OFFLINE."
+            )
+            logger.warning(
+                "════════════════════════════════════════════════════════════════"
+            )
         # Track the most-recent reconnect attempt so callers of
         # reconnect_if_offline() can rate-limit retries.
         import time as _t

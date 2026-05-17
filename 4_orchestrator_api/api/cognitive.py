@@ -137,7 +137,12 @@ def investigate_deep(request: Request, body: DeepInvestigationRequest):
 
     Returns the combined structured report. Use this when the cinematic
     streaming flow is not needed (e.g., headless CLI clients, reports).
+
+    Requires an activated environment — returns 409 with operational hint
+    when activation.kind == "empty".
     """
+    from orchestration.activation_gate import require_activation
+    require_activation(operation="deep_investigation")
     orch = getattr(request.app.state, "orchestrator", None)
     if orch is None:
         raise HTTPException(status_code=503, detail="orchestrator not initialized")
@@ -157,7 +162,11 @@ def investigate_deep_stream(request: Request, body: DeepInvestigationRequest):
       • one `agent.finished` event per swarm agent
       • one `reasoning.synthesized` event with claims + confidence
       • final `deep_report.finalized` event with the combined report
+
+    Requires an activated environment (see /investigate/deep).
     """
+    from orchestration.activation_gate import require_activation
+    require_activation(operation="deep_investigation_stream")
     orch = getattr(request.app.state, "orchestrator", None)
     if orch is None:
         raise HTTPException(status_code=503, detail="orchestrator not initialized")
@@ -256,8 +265,13 @@ def investigate_deep_stream(request: Request, body: DeepInvestigationRequest):
 @router.post("/demo/deep/{preset_key}")
 def demo_deep(request: Request, preset_key: str,
               body: Optional[DemoDeepRequest] = None):
-    """Synchronous deep investigation for a curated preset."""
+    """Synchronous deep investigation for a curated preset.
+
+    Requires an activated environment (see /investigate/deep).
+    """
+    from orchestration.activation_gate import require_activation
     from orchestration.presets import get_preset
+    require_activation(operation=f"demo_preset:{preset_key}")
     preset = get_preset(preset_key)
     if not preset:
         raise HTTPException(status_code=404, detail=f"preset '{preset_key}' not found")

@@ -507,12 +507,32 @@ export interface BackendPromotionResult {
   vertex_counts: Record<string, number> | null;
 }
 
+export interface BackendIngestSchemaVertex {
+  vertex_type: string;
+  required: string[];
+  optional: string[];
+  id_aliases?: string[];
+  filename_hints?: string[];
+}
+
 export interface BackendIngestSchema {
-  supported: Array<{
-    vertex_type: string;
-    required: string[];
-    optional: string[];
-  }>;
+  /** Canonical field — current backend. */
+  vertex_schemas?: BackendIngestSchemaVertex[];
+  /** Backward-compat alias. Older backend builds (and the current build's
+   *  alias field) populate this. The UI reads `vertex_schemas ?? supported`. */
+  supported?: BackendIngestSchemaVertex[];
+  edge_schema?: {
+    from_aliases: string[];
+    to_aliases: string[];
+    type_aliases: string[];
+    filename_tokens: string[];
+    filename_typed_maps: Array<{
+      filename_substring: string;
+      edge_type: string;
+      from_vertex_type: string;
+      to_vertex_type: string;
+    }>;
+  };
   notes: string[];
 }
 

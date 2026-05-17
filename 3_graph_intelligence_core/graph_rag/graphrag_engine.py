@@ -451,13 +451,38 @@ class GraphRAGEngine:
         return "entity"
 
     def _find_relevant_paths(self, query: str, entities: list[dict]) -> list[dict]:
-        paths = []
-        for e in entities[:3]:
-            vid = e.get("v_id", "")
-            if vid:
-                path = self.path_retriever.find_path(vid, vid, max_hops=3)
-                if path:
-                    paths.append({"from": vid, "to": vid, "length": path.path_length})
+        """Surface real multi-hop paths between *distinct* surfaced entities.
+
+        Iterates ordered pairs of the top suspects and asks the path retriever
+        (fast path: installed tg_shortest_path; slow path: in-Python BFS) for
+        a connection. Empty or self-pair results are skipped so the report's
+        traversal_paths section only carries meaningful structural ties.
+        """
+        seeds = [e.get("v_id", "") for e in entities[:4] if e.get("v_id")]
+        if len(seeds) < 2:
+            return []
+        paths: list[dict] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for i, from_id in enumerate(seeds):
+            for to_id in seeds[i + 1:]:
+                if from_id == to_id:
+                    continue
+                pair = (from_id, to_id) if from_id < to_id else (to_id, from_id)
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                try:
+                    path = self.path_retriever.find_path(from_id, to_id, max_hops=3)
+                except Exception:
+                    path = None
+                if path and path.path_length > 0:
+                    paths.append({
+                        "from":   from_id,
+                        "to":     to_id,
+                        "length": path.path_length,
+                    })
+                    if len(paths) >= 6:
+                        return paths
         return paths
 
     def _compress(

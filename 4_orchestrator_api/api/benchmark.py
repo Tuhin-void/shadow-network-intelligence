@@ -30,6 +30,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from orchestration.activation_gate import require_activation
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -215,7 +217,13 @@ def benchmark_ad_hoc(body: BenchmarkAdHocRequest) -> dict[str, Any]:
     suite. Returns the full BenchmarkRun dict + the quantitative aggregates
     so the UI can show side-by-side cost, retrieval ms, source count,
     and (optionally) judge / semantic signals.
+
+    Requires an activated environment — returns 409 when activation.kind
+    == "empty". Read-only artifact endpoints (/benchmark/summary, etc.)
+    remain available so evaluators can inspect prior runs without
+    activating an environment.
     """
+    require_activation(operation="benchmark_ad_hoc")
     try:
         run = _service().run_ad_hoc(
             question=body.question,
@@ -240,7 +248,11 @@ def benchmark_ad_hoc(body: BenchmarkAdHocRequest) -> dict[str, Any]:
 @router.post("/benchmark/run")
 def benchmark_run(body: BenchmarkRunRequest) -> dict[str, Any]:
     """Synchronous live benchmark run. Returns the persisted BenchmarkRun
-    serialized + the quantitative aggregates for the same file."""
+    serialized + the quantitative aggregates for the same file.
+
+    Requires an activated environment (see /benchmark/ad-hoc).
+    """
+    require_activation(operation="benchmark_run")
     try:
         run = _service().run(
             approaches=body.approaches or [],
@@ -266,7 +278,10 @@ def benchmark_run_stream(body: BenchmarkRunRequest):
     """SSE stream of run events. Yields:
       run.started · query.completed · query.failed · run.completed · run.error
     Each event is a JSON payload in a `data:` line.
+
+    Requires an activated environment (see /benchmark/ad-hoc).
     """
+    require_activation(operation="benchmark_run_stream")
     svc = _service()
 
     def _gen():

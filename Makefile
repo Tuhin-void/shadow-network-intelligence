@@ -11,6 +11,7 @@ help:
 	@echo ""
 	@echo "  ── Run (two terminals recommended) ──────────────────────"
 	@echo "  make dev-backend      - Start orchestrator API (port 8000)"
+	@echo "  make demo-backend     - Backend with activation reset (clean demo landing)"
 	@echo "  make dev-frontend     - Start dashboard dev server (port 5173)"
 	@echo "  make dev-instructions - Print run instructions for both"
 	@echo "  make run              - Same as dev-backend (alias)"
@@ -40,6 +41,12 @@ install:
 install-all: install
 	cd 8_dashboard_ui && npm install
 
+# Optional: BERTScore for the semantic-similarity scorer. Without it,
+# 2_baseline_systems/evaluation/semantic_scorer.py honestly reports
+# "embedding_cosine" as the method instead. Heavy install (transformers + torch).
+install-bertscore:
+	pip install 'bert-score>=0.3.13'
+
 setup:
 	@echo "Setting up project structure..."
 	@chmod +x 9_devops/scripts/*.sh 2>/dev/null || true
@@ -53,6 +60,15 @@ dev_setup:
 # imports like `from shared.logging_utils.logwriter import info` fail.
 dev-backend:
 	PYTHONPATH=. uvicorn main:app --app-dir 4_orchestrator_api --host 0.0.0.0 --port 8000 --reload
+
+# Demo-mode backend — same as dev-backend but forces a fresh `empty`
+# activation state on every boot. Use this when recording demo videos
+# or sharing the dashboard with evaluators so the landing experience
+# is the deliberate "click Launch Sample Ecosystem" CTA rather than
+# whatever state was persisted from the previous session.
+demo-backend:
+	PYTHONPATH=. SNI_ENV_ACTIVATION_RESET=1 SNI_PREWARM_ON_START=0 \
+		uvicorn main:app --app-dir 4_orchestrator_api --host 0.0.0.0 --port 8000 --reload
 
 # Alias kept for backwards compatibility.
 run: dev-backend
@@ -75,14 +91,32 @@ run-demo:
 benchmark:
 	cd 2_baseline_systems && python benchmark_runner.py
 
+# Re-run the GraphRAG structural-recovery evaluation against the live TG graph.
+# Writes scripts/adversarial_results.{md,json}. Requires TG online.
+benchmark-full:
+	python3 scripts/adversarial_benchmark.py --profile small
+
+# Re-run the 3-pipeline measured benchmark — the one whose numbers are
+# cited in the README's "Real measured results" table. Real ChromaDB +
+# TigerGraph + mock LLM (deterministic).
+benchmark-measured:
+	python -m 2_baseline_systems benchmark --profile small --limit 5 \
+		--approaches pure_llm vector_rag graph_rag \
+		--vector-provider chroma --graph-provider tigergraph \
+		--embedder nim --llm mock
+
+# Tests need PYTHONPATH=. so cross-module packages (3_graph_intelligence_core,
+# 4_orchestrator_api.api.benchmark) resolve the same way they do at runtime.
+# `python -m pytest` is more portable than `pytest` (works even when the
+# script-installed entry point is missing from PATH).
 test:
-	pytest tests/ -v
+	PYTHONPATH=. python -m pytest tests/unit/ -v
 
 test-unit:
-	pytest tests/unit/ -v
+	PYTHONPATH=. python -m pytest tests/unit/ -v
 
 test-integration:
-	pytest tests/integration/ -v
+	PYTHONPATH=. python -m pytest tests/integration/ -v
 
 # Quick post-startup sanity check — assumes backend is on :8000.
 # Fails loud if any expected endpoint returns non-2xx.

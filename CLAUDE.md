@@ -120,6 +120,28 @@ FraudRing membership edges use per-type explicit edges (not polymorphic):
 
 `GraphClient` silently switches to `OfflineFallback` on any connection failure. Health check will report `Mode: OFFLINE` with `healthy: True`. The benchmark still runs in this mode using local dataset data. This is intentional — never remove it.
 
+The orchestrator at boot loads `AdaptiveDataLoader(profile=DATA_PROFILE)` and passes the dataset into `GraphClient` so OfflineFallback indexes real entities (not empty stubs) when TG goes down.
+
+### Environment Activation lifecycle
+
+The platform has an operator-controlled environment-activation gate (`4_orchestrator_api/orchestration/activation.py`) that is **separate** from the physical TG state.
+
+- Kinds: `empty` | `sample` | `uploaded` | `hybrid` | `offline`
+- Default boot: `empty` (operator must explicitly Launch)
+- Persisted: `4_orchestrator_api/outputs/environment_state.json`
+- Reset env var: `SNI_ENV_ACTIVATION_RESET=1` forces fresh empty
+- Gate: `/investigate`, `/investigate/stream`, `/investigate/deep*`, `/benchmark/run*`, `/benchmark/ad-hoc`, `/demo/deep/*` return HTTP 409 with operator hint when kind=`empty`
+- Read-only artifact endpoints stay always-available regardless of activation
+
+Auto-flips:
+- `/ingest/sample` success → activates `sample`
+- `/ingest/promote*` success → activates `uploaded` (or promotes to `hybrid` if sample already active)
+- `/ingest/clear` → returns to `empty` (does NOT mutate TG)
+
+`/ingest/environment` returns `total_vertices: 0` when activation is `empty`, even though TG physically holds data. The raw physical counts are surfaced separately under `physical_state.tg_vertex_counts` for transparency — confirms activation does not mutate TG.
+
+Test/demo helper: `make demo-backend` sets `SNI_ENV_ACTIVATION_RESET=1` automatically.
+
 ### Data Profiles
 
 | Profile | Persons | Companies | Accounts | Use |

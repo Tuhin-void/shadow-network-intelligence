@@ -576,10 +576,14 @@ function UploadPane({
               recognized schemas
             </div>
             <div className="flex flex-wrap justify-center gap-1">
-              {schema.supported.map((s) => (
+              {/* Backward-compat: backend returns both `vertex_schemas`
+                  (canonical) and `supported` (alias). Render whichever the
+                  current backend version emits; never crash if both are
+                  absent or the response shape changes. */}
+              {(schema.vertex_schemas ?? schema.supported ?? []).map((s) => (
                 <span
                   key={s.vertex_type}
-                  title={`required: ${s.required.join(', ')}\noptional: ${s.optional.join(', ')}`}
+                  title={`required: ${(s.required ?? []).join(', ')}\noptional: ${(s.optional ?? []).join(', ')}`}
                   className="chip text-[8.5px] border-[rgba(34,211,238,0.28)] text-[var(--color-ice-400)]"
                 >
                   {s.vertex_type}

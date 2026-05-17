@@ -59,7 +59,21 @@ class InvestigationOrchestrator:
         from graph_rag.graphrag_engine import GraphRAGEngine
 
         self._config = load_config(None)
-        self._client = GraphClient(self._config)
+
+        # Load the local dataset eagerly so the GraphClient's OfflineFallback
+        # has real data to fall back to. Without this the offline path returns
+        # empty vertex lists and investigations silently return 0 suspects
+        # — a real evaluator-experience hazard. We intentionally do this BEFORE
+        # constructing GraphClient so the fallback initializes correctly in
+        # either branch of `_init_pyTigerGraph` (success or exception).
+        #
+        # Profile resolution: DATA_PROFILE env var (matches the rest of the
+        # platform) → "small" default. We `try`/`except` so a missing dataset
+        # doesn't take the whole orchestrator down — online mode will still
+        # work; the fallback just won't have local data to serve.
+        self._dataset = self._load_local_dataset()
+
+        self._client = GraphClient(self._config, dataset=self._dataset)
         self._engine = GraphRAGEngine(self._client, self._config, compression="rule_based")
         self._sessions = SessionStore()
         self._is_offline = self._client._offline_mode
@@ -77,6 +91,44 @@ class InvestigationOrchestrator:
         self._preset_prewarm_stats: dict = {}
         if preset_prewarm and not self._is_offline:
             self._preset_prewarm_stats = self._prewarm_presets()
+
+    @staticmethod
+    def _load_local_dataset():
+        """Load the local CSV dataset so OfflineFallback can serve it.
+
+        Profile resolution: `DATA_PROFILE` env var (matches the rest of the
+        platform). Failures are non-fatal — returning None means OfflineFallback
+        will still engage on TG failure, just with an empty index. Online mode
+        is unaffected either way; this is purely for degraded-mode continuity.
+        """
+        import logging as _logging
+        import os as _os
+        log = _logging.getLogger(__name__)
+        profile = _os.environ.get("DATA_PROFILE", "small")
+        try:
+            # Import path mirrors the BenchmarkService pattern (importlib
+            # because the package name starts with a digit).
+            from importlib import import_module
+            _dl_mod = import_module("2_baseline_systems.shared.data_loader")
+            loader = _dl_mod.AdaptiveDataLoader(profile=profile)
+            ds = loader.load()
+            n_persons = len(getattr(ds, "persons", []) or [])
+            n_companies = len(getattr(ds, "companies", []) or [])
+            n_accounts = len(getattr(ds, "accounts", []) or [])
+            log.info(
+                "InvestigationOrchestrator: local dataset loaded (profile=%s, "
+                "persons=%d, companies=%d, accounts=%d) — OfflineFallback armed",
+                profile, n_persons, n_companies, n_accounts,
+            )
+            return ds
+        except Exception as e:
+            log.warning(
+                "InvestigationOrchestrator: local dataset load failed (%s: %s) — "
+                "OfflineFallback will engage with an empty index if TG goes down. "
+                "Run `make generate-data` to seed outputs/%s/csv/.",
+                type(e).__name__, e, profile,
+            )
+            return None
 
     def _prewarm_presets(self) -> dict:
         """
@@ -288,10 +340,19 @@ class InvestigationOrchestrator:
         # Stamp the intent onto the report so downstream consumers (UI,
         # archive, deep stream) see a single source of truth.
         report_dict["intent"] = intent_dict
+        # Re-snapshot the offline flag in case GraphClient flipped during
+        # the query (mid-query failures fall back transparently inside
+        # GraphClient). Without this re-read, an investigation that started
+        # online and ended offline would mis-report mode=online.
+        current_offline = bool(getattr(self._client, "_offline_mode", self._is_offline))
         report_dict["metadata"] = {
             **(report_dict.get("metadata") or {}),
             "cache_hit": bool(cache_hit),
             "intent_kind": intent.kind,
+            # Single source of truth for the UI degraded banner. Mode strings
+            # are stable: "live_tigergraph" or "offline_local_dataset".
+            "mode": "offline_local_dataset" if current_offline else "live_tigergraph",
+            "tigergraph_online": not current_offline,
         }
         self._sessions.record_report(session.id, report_dict)
         # Archive the shallow investigation. Deep stream archives a

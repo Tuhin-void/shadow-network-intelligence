@@ -19,6 +19,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from orchestration.activation_gate import (
+    require_activation,
+    current_activation_dict,
+)
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -46,12 +51,23 @@ def investigate(request: Request, body: InvestigationRequest):
 
     For live-unfolding intelligence (recommended for the cinematic UI),
     use POST /investigate/stream instead.
+
+    Requires an activated environment — returns 409 with operational hint
+    when activation.kind == "empty" so the UI can render a "Launch first"
+    affordance instead of silently exposing live graph state.
     """
+    require_activation(operation="investigation")
     orch = _get_orch(request)
     report = orch.investigate(
         query=body.query, session_id=body.session_id,
         top_k=body.top_k, depth=body.depth, strategy=body.strategy,
     )
+    # Stamp the activation record onto the response so downstream
+    # consumers (UI, audit log, downstream reports) see a single source
+    # of truth for which environment served this investigation.
+    if isinstance(report, dict):
+        md = report.setdefault("metadata", {})
+        md["activation"] = current_activation_dict()
     return report
 
 
@@ -61,11 +77,22 @@ def investigate_stream(request: Request, body: InvestigationRequest):
     Stream investigation events via Server-Sent Events. Each event is
     JSON-encoded in a `data:` line; consumers may use EventSource on
     the browser side.
+
+    Requires an activated environment (see /investigate).
     """
+    require_activation(operation="investigation_stream")
     orch = _get_orch(request)
+    activation_dict = current_activation_dict()
 
     def _sse_gen():
         try:
+            # Lead with an activation event so SSE consumers know which
+            # environment this stream is serving (matches /investigate's
+            # report.metadata.activation field).
+            yield (
+                "event: activation\n"
+                f"data: {json.dumps(activation_dict)}\n\n"
+            )
             for ev in orch.investigate_stream(
                 query=body.query, session_id=body.session_id,
                 top_k=body.top_k, depth=body.depth, strategy=body.strategy,

@@ -75,10 +75,20 @@ The benchmark **does not** claim:
 - A subjective judge-LLM score
 
 The benchmark **does** claim, with measured numbers:
-- GraphRAG produces structural evidence on every adversarial query
+- GraphRAG produces ≥3 typed structural edges on every adversarial
+  query (measured: `scripts/adversarial_results.json`)
 - VectorRAG cannot — by definition, edges are not in text chunks
-- GraphRAG uses ~11× fewer tokens per answer than VectorRAG
-- Structural retrieval is reproducible (0 drift across trials)
+  (definitional ceiling; the structural-evaluation script does not
+  execute VectorRAG end-to-end because no embedding model can change
+  this ceiling — see `10_research/04_vectorrag_limitations.md`)
+- On the most recent 3-pipeline measured run with chroma + tigergraph
+  + mock LLM (5 queries, `benchmark_RUN_20260516_224731_*.json`),
+  GraphRAG injects **~11× less context** into the LLM prompt than
+  VectorRAG (50 vs 554 tokens / query). This is a context-budget
+  comparison, not an answer-quality comparison — judge scoring requires
+  a real LLM (see the `disclosure` block on every benchmark response).
+- Structural retrieval is reproducible: `scripts/benchmark_reliability.py`
+  reports `status: STABLE`, 0 drift across two trials.
 
 ## How to interpret the result table
 
