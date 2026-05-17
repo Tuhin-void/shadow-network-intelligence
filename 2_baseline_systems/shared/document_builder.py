@@ -1,7 +1,9 @@
 """
 Document builder - transforms 1_data_engine entities into RAG documents.
 """
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 from .schemas import ShadowDataset, Document, BenchmarkQuery
 from .chunkers.recursive import RecursiveChunker
@@ -23,6 +25,63 @@ class DocumentBuilder:
         docs.extend(self._build_authored_docs())
         logger.info(f"Built {len(docs)} documents")
         return docs
+
+    def build_with_enrichment(self, jsonl_path: Optional[Path] = None) -> list[Document]:
+        """Build the base entity corpus AND fold in the enriched intelligence
+        corpus (if it exists). Backward-compatible: when `jsonl_path` is
+        missing or empty, returns the same docs as `build_all()`.
+
+        The enriched JSONL is produced by
+        `scripts/semantic_intelligence_corpus.py`. Each line is a chunk-
+        ready record with `doc_id`, `doc_type`, `primary_entity`,
+        `related_entities`, `narrative`, plus topology metadata that we
+        forward into `Document.metadata` so the vector store can filter."""
+        docs = self.build_all()
+        if jsonl_path is None:
+            return docs
+        path = Path(jsonl_path)
+        if not path.exists():
+            logger.info("enriched JSONL not found at %s — skipping", path)
+            return docs
+        enriched = list(self._load_jsonl_documents(path))
+        logger.info("enriched corpus added: %d additional documents from %s",
+                    len(enriched), path)
+        docs.extend(enriched)
+        return docs
+
+    def _load_jsonl_documents(self, path: Path):
+        """Yield Document records from the semantic-intelligence JSONL."""
+        with path.open() as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    logger.warning("skipping malformed JSONL line %d: %s", i, e)
+                    continue
+                doc_id = rec.get("doc_id") or f"ENR-{i:08d}"
+                narrative = rec.get("narrative") or ""
+                if not narrative:
+                    continue
+                yield Document(
+                    id=str(doc_id),
+                    text=narrative,
+                    metadata={
+                        "source":             "semantic_intelligence_corpus",
+                        "doc_type":           rec.get("doc_type"),
+                        "primary_entity":     rec.get("primary_entity"),
+                        "related_entities":   rec.get("related_entities") or [],
+                        "topology_tags":      rec.get("topology_tags") or [],
+                        "risk_tags":          rec.get("risk_tags") or [],
+                        "edge_types":         rec.get("edge_types") or [],
+                        "ring_id":            rec.get("ring_id"),
+                        "investigation_type": rec.get("investigation_type"),
+                        "retrieval_keywords": rec.get("retrieval_keywords") or [],
+                        "token_estimate":     rec.get("token_estimate"),
+                    },
+                )
 
     def _build_entity_profiles(self) -> list[Document]:
         docs = []

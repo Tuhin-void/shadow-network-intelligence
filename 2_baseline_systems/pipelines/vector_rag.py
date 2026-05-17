@@ -54,14 +54,27 @@ class VectorRAGPipeline(BasePipeline):
         if self._indexed:
             return
 
+        from pathlib import Path as _Path
         from ..shared.document_builder import DocumentBuilder
 
         try:
             dataset = self.data_loader.load()
             builder = DocumentBuilder(dataset, self.chunk_size, self.chunk_overlap)
-            docs = builder.build_all()
+            # Opt-in enriched corpus: if a `semantic_intelligence_corpus.py`
+            # JSONL exists for the active profile, fold it into the index.
+            # Backward-compatible — falls back to `build_all` if missing.
+            profile = getattr(self.data_loader, "profile", None)
+            jsonl_path = None
+            if profile:
+                candidate = (_Path(__file__).resolve().parents[2] /
+                             "outputs" / profile / "enriched_corpus" /
+                             f"{profile}_intelligence.jsonl")
+                if candidate.exists():
+                    jsonl_path = candidate
+            docs = builder.build_with_enrichment(jsonl_path=jsonl_path)
 
-            logger.info(f"VectorRAG: indexing {len(docs)} documents")
+            logger.info(f"VectorRAG: indexing {len(docs)} documents"
+                        f"{f' (incl. enriched corpus: {jsonl_path.name})' if jsonl_path else ''}")
             self.vector_store.index_documents([d.to_dict() for d in docs], self.embedder)
             self._indexed = True
             logger.info("VectorRAG: indexing complete")

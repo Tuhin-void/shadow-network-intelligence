@@ -82,6 +82,137 @@ You only need to re-run enrichment when:
 For a normal benchmark run against an unchanged profile, enrichment
 is read-only.
 
+## The semantic-intelligence corpus
+
+`scripts/semantic_intelligence_corpus.py` is a deterministic, template-
+driven generator that materialises a LARGE volume of operational AML/
+compliance-style documents from the existing graph data. **No LLM
+calls, no API cost, no graph mutation.**
+
+### What it produces
+
+Per entity type:
+
+| Entity      | Docs per entity | Doc types                                          |
+|---          |---              |---                                                  |
+| Person      | 2               | `subject_brief`, `behavior_narrative`              |
+| Company     | 2               | `corporate_dossier`, `beneficial_ownership`        |
+| Account     | 1               | `account_intelligence`                              |
+| Ring        | 3               | `ring_operational_summary`, `laundering_pathway`, `cross_entity_analysis` |
+| Address     | 1 (top-collision) | `infra_overlap`                                  |
+| Device      | 1 (top-collision) | `device_fingerprint`                             |
+| Suspicious Tx | 1             | `transaction_intelligence`                          |
+| Ring key entities | 1         | `neighborhood_walk` (depth-2)                       |
+
+### Output structure
+
+```
+outputs/{profile}/enriched_corpus/
+├── {profile}_intelligence.jsonl   ← primary chunk-ready output
+├── manifest.json                   ← doc counts, token estimates, ring coverage
+└── sample_markdown/                ← 12 human-readable sample docs
+```
+
+Each JSONL record carries chunk-ready metadata:
+
+```json
+{
+  "doc_id":             "SUBJ-P-000001",
+  "doc_type":           "subject_brief",
+  "primary_entity":     "P-000001",
+  "related_entities":   ["A-005895", "ADDR-000785", "C-003398", "P-000531"],
+  "topology_tags":      ["degree=5", "tier=monitored"],
+  "risk_tags":          ["monitored"],
+  "edge_types":         ["ASSOCIATED_WITH", "HAS_ACCOUNT", "LOCATED_AT", ...],
+  "ring_id":            null,
+  "investigation_type": "subject_review",
+  "retrieval_keywords": ["P-000001", "Raj Al-Hassan", ...],
+  "narrative":          "Operational note on subject P-000001 ...",
+  "token_estimate":     167,
+  "chunk_size_chars":   668
+}
+```
+
+### Grounding contract
+
+Every doc references **real entity IDs from the source CSVs** and
+walks **real edges from `edges.csv`** / the ring-membership tables.
+No invented topology. The grounding check at the bottom of this section
+verifies this on every run.
+
+Validation method:
+```bash
+python3 -c "
+import json, csv
+ids = set()
+for f in ['persons','companies','accounts','addresses','devices','transactions','fraud_rings']:
+    for row in csv.DictReader(open(f'outputs/small/csv/{f}.csv')):
+        ids.add(row['id'])
+bad = 0
+for line in open('outputs/small/enriched_corpus/small_intelligence.jsonl'):
+    d = json.loads(line)
+    for r in [d['primary_entity']] + d['related_entities']:
+        if r and r.startswith(('P-','C-','A-','ADDR-','D-','TX-','FR-')) and r not in ids:
+            bad += 1
+print('invalid:', bad)
+"
+```
+
+### How it's consumed
+
+`DocumentBuilder.build_with_enrichment(jsonl_path)` is the opt-in path
+on the VectorRAG baseline. When the enriched JSONL exists for the
+active profile, it is automatically merged into the indexed corpus.
+When it doesn't, the builder falls back to `build_all()` — backward
+compatible, no behavioural change.
+
+Wiring (in `2_baseline_systems/pipelines/vector_rag.py`):
+
+```python
+candidate = (REPO_ROOT / "outputs" / profile / "enriched_corpus" /
+             f"{profile}_intelligence.jsonl")
+docs = builder.build_with_enrichment(
+    jsonl_path=candidate if candidate.exists() else None,
+)
+```
+
+### Determinism + reproducibility
+
+- Seeded by `(entity_id, doc_type, slot_name)` per-template pick →
+  identical inputs produce identical text across runs
+- `--seed N` flag overrides the default seed (42)
+- No randomness leaks into the manifest — re-running with the same
+  inputs produces an identical JSONL
+
+### Usage
+
+```bash
+# Smoke test: 50 docs per entity-type pass (~70k tokens, <1s)
+make enrich-corpus-test
+# or directly:
+python3 scripts/semantic_intelligence_corpus.py --profile small --limit 50
+
+# Full corpus generation (small profile → ~6M tokens estimated, ~37k docs)
+make enrich-corpus
+# or directly:
+python3 scripts/semantic_intelligence_corpus.py --profile small
+
+# Dry run: compute manifest stats without writing JSONL
+python3 scripts/semantic_intelligence_corpus.py --profile small --dry-run
+
+# Larger profile
+python3 scripts/semantic_intelligence_corpus.py --profile benchmark_dense
+```
+
+### Relationship to `scripts/data_corpus_enricher.py`
+
+The older enricher produces 89 markdown narratives focused on ring
+dossiers and high-collision infrastructure briefs (~17k tokens). The
+new generator is a strict superset: same grounding contract, same
+markdown style, plus many more entity-type passes, plus chunk-ready
+JSONL output. Both are kept; the new one is the default consumer for
+the VectorRAG baseline.
+
 ## The embedder provider choice
 
 The platform supports multiple embedder providers, all gated by the

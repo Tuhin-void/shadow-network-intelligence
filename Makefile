@@ -73,6 +73,14 @@ generate-data:
 generate-data-full:
 	cd 1_data_engine/generators && python main_generator.py --size full
 
+# Build the semantic intelligence corpus (deterministic, no LLM calls).
+# Reads outputs/{profile}/csv/, writes outputs/{profile}/enriched_corpus/.
+enrich-corpus:
+	python3 scripts/semantic_intelligence_corpus.py --profile small
+
+enrich-corpus-test:
+	python3 scripts/semantic_intelligence_corpus.py --profile small --limit 50
+
 # Load data into TigerGraph
 hydrate:
 	@bash 9_devops/scripts/hydrate.sh
