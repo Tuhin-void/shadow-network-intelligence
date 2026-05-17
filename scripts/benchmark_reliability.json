@@ -1,0 +1,172 @@
+{
+  "status": "STABLE",
+  "queries_run": 5,
+  "structural_drift_count": 0,
+  "latency_outlier_count": 0,
+  "empty_answer_count": 0,
+  "latency_tolerance_pct": 90.0,
+  "trials_per_query": 2,
+  "issues": [],
+  "rows": [
+    {
+      "q": {
+        "id": "ADV-RING-001",
+        "category": "ring_identification"
+      },
+      "trial1": {
+        "qid": "ADV-RING-001",
+        "ms": 8207.6,
+        "entities": 5,
+        "neighbors": 160,
+        "evidence": 5,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "answer_len": 753,
+        "answer_nonempty": true
+      },
+      "trial2": {
+        "qid": "ADV-RING-001",
+        "ms": 1419.0,
+        "entities": 5,
+        "neighbors": 160,
+        "evidence": 5,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "answer_len": 753,
+        "answer_nonempty": true
+      }
+    },
+    {
+      "q": {
+        "id": "ADV-HIDDEN-002",
+        "category": "hidden_beneficial_owner"
+      },
+      "trial1": {
+        "qid": "ADV-HIDDEN-002",
+        "ms": 17508.8,
+        "entities": 5,
+        "neighbors": 187,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "answer_len": 855,
+        "answer_nonempty": true
+      },
+      "trial2": {
+        "qid": "ADV-HIDDEN-002",
+        "ms": 4812.3,
+        "entities": 5,
+        "neighbors": 187,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "answer_len": 855,
+        "answer_nonempty": true
+      }
+    },
+    {
+      "q": {
+        "id": "ADV-COLLUSION-003",
+        "category": "shared_infrastructure"
+      },
+      "trial1": {
+        "qid": "ADV-COLLUSION-003",
+        "ms": 22332.5,
+        "entities": 5,
+        "neighbors": 145,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS"
+        ],
+        "answer_len": 602,
+        "answer_nonempty": true
+      },
+      "trial2": {
+        "qid": "ADV-COLLUSION-003",
+        "ms": 4838.1,
+        "entities": 5,
+        "neighbors": 145,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS"
+        ],
+        "answer_len": 602,
+        "answer_nonempty": true
+      }
+    },
+    {
+      "q": {
+        "id": "ADV-DEVICE-004",
+        "category": "shared_device"
+      },
+      "trial1": {
+        "qid": "ADV-DEVICE-004",
+        "ms": 15939.6,
+        "entities": 5,
+        "neighbors": 244,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS"
+        ],
+        "answer_len": 570,
+        "answer_nonempty": true
+      },
+      "trial2": {
+        "qid": "ADV-DEVICE-004",
+        "ms": 2095.3,
+        "entities": 5,
+        "neighbors": 244,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS"
+        ],
+        "answer_len": 570,
+        "answer_nonempty": true
+      }
+    },
+    {
+      "q": {
+        "id": "ADV-LAYERING-005",
+        "category": "multi_hop_laundering"
+      },
+      "trial1": {
+        "qid": "ADV-LAYERING-005",
+        "ms": 23725.9,
+        "entities": 5,
+        "neighbors": 265,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "answer_len": 853,
+        "answer_nonempty": true
+      },
+      "trial2": {
+        "qid": "ADV-LAYERING-005",
+        "ms": 3677.4,
+        "entities": 5,
+        "neighbors": 265,
+        "evidence": 5,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "answer_len": 853,
+        "answer_nonempty": true
+      }
+    }
+  ],
+  "prewarm": {
+    "candidates": 138,
+    "neighbors_warmed": 138,
+    "topo_warmed": 90,
+    "ms": 41649.0
+  }
+}

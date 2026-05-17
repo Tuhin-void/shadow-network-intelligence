@@ -160,3 +160,68 @@ It does NOT bypass the script-based path — it uses the same
 still re-execute the benchmark and inspect aggregates.
 
 Same artifact path, different trigger surface.
+
+## Post-enrichment benchmark contract
+
+After the semantic intelligence corpus is hydrated (see
+[`07_semantic_enrichment_pipeline.md`](./07_semantic_enrichment_pipeline.md)),
+the `/benchmark/quantitative` endpoint surfaces two additional context
+blocks so the UI can frame numbers honestly:
+
+### `retrieval_context`
+
+Tells the reviewer what each pipeline would index against in
+production:
+
+```json
+{
+  "vector_provider":      "mock" | "chroma",
+  "llm_provider":         "mock" | "ollama" | "openai" | "anthropic",
+  "graph_provider":       "tigergraph",
+  "embedder_provider":    "nim" | "ollama" | "mock",
+  "vectorrag_mode":       "mock (deterministic, returns no results)" | "real_chroma_search",
+  "graphrag_mode":        "live_tigergraph_traversal",
+  "semantic_corpus_size": 35402,       // from outputs/{profile}/enriched_corpus/manifest.json
+  "enrichment_token_count": 6097207,
+  "enriched_doc_types":   ["subject_brief", "behavior_narrative", ...]
+}
+```
+
+The frontend uses `semantic_corpus_size` to honestly show
+**"VectorRAG indexed 35,402 semantic chunks"** even when the live sweep
+returned 0 sources via the mock provider. The phrasing on the UI is
+"0 structural edges by definition — text chunks ≠ graph joins" rather
+than the misleading bare "0 sources."
+
+### `latency_context`
+
+Explicitly frames benchmark sweeps as **cold**:
+
+```json
+{
+  "sweep_mode":          "cold",
+  "explanation":         "Benchmark sweeps run every query through a cold engine path so each measurement is independent. Steady-state operational latency is <50ms warm-cache (see /investigate in the orchestrator).",
+  "cold_avg_retrieval_ms": 3073.1,
+  "warm_replay_ms":      "<50ms (orchestrator ResultCache hit)"
+}
+```
+
+This prevents the common misreading that `avg_retrieval_ms` ≈ user-
+facing latency. It is not — it is the per-query cold cost of a
+benchmark sweep. Real user latency on the warm-cache path is <50ms.
+
+## The structural-verdict explainer
+
+`StructuralVerdictExplainer` (in
+[`../8_dashboard_ui/src/components/benchmark/StructuralVerdictExplainer.tsx`](../8_dashboard_ui/src/components/benchmark/StructuralVerdictExplainer.tsx))
+is a single UI surface that teaches the central thesis: **semantic
+similarity is not structural continuity**. It cross-references the
+actual benchmark numbers (structural recovery per pipeline) and ties
+them to a substrate-level explanation:
+
+- PureLLM → "model priors" → "disconnected"
+- VectorRAG → "text chunks" → "related but fragmented"
+- GraphRAG → "typed-edge subgraphs" → "continuous multi-hop"
+
+Every claim made in the explainer is grounded in a number already in
+the response — no rhetoric without an artifact reference.

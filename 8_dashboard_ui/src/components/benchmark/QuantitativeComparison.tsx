@@ -140,9 +140,40 @@ function Body({ data }: { data: QuantitativeBenchmark }) {
 
   const struct = data.structural;
   const totalQ = struct?.queries ?? 0;
+  const rctx = data.retrievalContext;
+  const lctx = data.latencyContext;
 
   return (
     <>
+      {/* Cold-sweep + enrichment banner — surfaces operator-relevant context
+          that frames every number in the cards below. Honest by design. */}
+      {(rctx || lctx) && (
+        <div className="border-t border-[var(--color-line-soft)] px-4 py-2 flex items-center gap-2 flex-wrap font-mono text-[9.5px] tracking-[0.22em] uppercase bg-[rgba(7,9,14,0.5)]">
+          {lctx && (
+            <>
+              <span className="text-[var(--color-amber-400)]">cold sweep</span>
+              <span className="text-[var(--color-text-muted)]">·</span>
+              <span className="text-[var(--color-text-secondary)] normal-case tracking-normal text-[10.5px]">
+                {lctx.explanation}
+              </span>
+              <span className="text-[var(--color-text-muted)]">·</span>
+              <span className="text-[var(--color-emerald-400)]">warm replay {lctx.warmReplayMs}</span>
+            </>
+          )}
+          {rctx && rctx.semanticCorpusSize != null && (
+            <>
+              <span className="text-[var(--color-text-muted)] mx-1">|</span>
+              <span className="text-[var(--color-ice-400)]">
+                enrichment {rctx.semanticCorpusSize.toLocaleString()} docs
+                {rctx.enrichmentTokenCount != null
+                  ? ` · ${(rctx.enrichmentTokenCount / 1_000_000).toFixed(1)}M tok`
+                  : ''}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 divide-x divide-y divide-[var(--color-line-soft)]">
         {order.map((k) => {
           const p = byKey[k];
@@ -164,6 +195,7 @@ function Body({ data }: { data: QuantitativeBenchmark }) {
               data={p}
               structuralRecovery={structuralRecovery}
               structuralTotal={totalQ}
+              retrievalContext={rctx}
             />
           );
         })}
@@ -222,11 +254,13 @@ function PipelineCard({
   data,
   structuralRecovery,
   structuralTotal,
+  retrievalContext,
 }: {
   approach: PipelineKey;
   data: PipelineAggregate;
   structuralRecovery: number | null;
   structuralTotal: number;
+  retrievalContext: QuantitativeBenchmark['retrievalContext'];
 }) {
   const tone = PIPELINE_TONE[approach];
   const color = toneColor(tone);
@@ -302,17 +336,69 @@ function PipelineCard({
       <MetricRow
         icon={GitBranch}
         color={color}
-        label="avg sources"
+        label={approach === 'vector_rag' ? 'structural sources' : 'avg sources'}
         value={data.avgSourcesRetrieved.toFixed(1)}
         sub={
           approach === 'graph_rag'
             ? 'focused structural answer'
             : approach === 'vector_rag'
-            ? 'chunk-based retrieval'
+            ? '0 structural edges by definition · text chunks ≠ graph joins'
             : 'no retrieval'
         }
-        hint="items returned per query"
+        hint={
+          approach === 'vector_rag'
+            ? 'VectorRAG retrieves text-similar chunks. Structural edges are not in chunks — they are graph joins. See the indexed-chunk count below.'
+            : 'items returned per query'
+        }
       />
+
+      {/* VectorRAG honest framing — surface the indexed corpus footprint
+          so "0 structural sources" reads correctly: not "retrieval failed",
+          but "the substrate has no edges to surface". */}
+      {approach === 'vector_rag' && retrievalContext && (
+        <div className="panel-soft p-2 border-l-2"
+             style={{ borderLeftColor: 'rgba(245,158,11,0.32)' }}>
+          <div className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] mb-1">
+            indexed semantic corpus
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-[14px] font-light" style={{ color }}>
+              {(retrievalContext.semanticCorpusSize ?? 0).toLocaleString()}
+            </span>
+            <span className="font-mono text-[9.5px] text-[var(--color-text-muted)]">
+              chunks ·{' '}
+              {retrievalContext.enrichmentTokenCount != null
+                ? `${(retrievalContext.enrichmentTokenCount / 1_000_000).toFixed(1)}M tokens`
+                : 'unknown'}
+            </span>
+          </div>
+          <div className="text-[9.5px] text-[var(--color-text-secondary)] mt-1 leading-snug">
+            mode: <span className="font-mono">{retrievalContext.vectorragMode}</span>
+          </div>
+          <div className="text-[9.5px] text-[var(--color-text-muted)] mt-1 leading-snug">
+            VectorRAG indexed against this corpus would retrieve
+            semantically-related text chunks — none of which materialise
+            typed edges, ring memberships, or multi-hop joins.
+          </div>
+        </div>
+      )}
+
+      {/* GraphRAG companion framing — the substrate IS the answer */}
+      {approach === 'graph_rag' && retrievalContext && (
+        <div className="panel-soft p-2 border-l-2"
+             style={{ borderLeftColor: 'rgba(16,185,129,0.32)' }}>
+          <div className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] mb-1">
+            traversal surface
+          </div>
+          <div className="text-[9.5px] text-[var(--color-text-secondary)] leading-snug">
+            mode: <span className="font-mono">{retrievalContext.graphragMode}</span>
+          </div>
+          <div className="text-[9.5px] text-[var(--color-text-muted)] mt-1 leading-snug">
+            GraphRAG traverses real typed edges in TigerGraph. Each source
+            is a structural neighbourhood, not a text-similar chunk.
+          </div>
+        </div>
+      )}
 
       {/* Token-reduction bar — informational, comparing to heaviest pipeline */}
       {data.avgTotalTokens > 0 && (

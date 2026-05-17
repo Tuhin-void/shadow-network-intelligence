@@ -624,6 +624,28 @@ export interface BackendQuantitativeBenchmark {
     enabled: boolean;
     semantic_methods: string[];
   };
+  /** Provider transparency + enrichment-corpus footprint. The UI uses
+   *  this to honestly explain VectorRAG behaviour when the provider
+   *  is mock (no actual vector search). */
+  retrieval_context?: {
+    profile: string;
+    vector_provider: string;
+    llm_provider: string;
+    graph_provider: string;
+    embedder_provider: string;
+    vectorrag_mode: string;
+    semantic_corpus_size: number | null;
+    enrichment_token_count: number | null;
+    enriched_doc_types: string[] | null;
+    graphrag_mode: string;
+  };
+  /** Cold vs warm framing. Benchmark sweeps are cold by design. */
+  latency_context?: {
+    sweep_mode: string;
+    explanation: string;
+    cold_avg_retrieval_ms: number;
+    warm_replay_ms: string;
+  };
   disclosure: Record<string, string>;
 }
 

@@ -1,0 +1,154 @@
+{
+  "started_at": 1778964471.8427246,
+  "tigergraph_host": "https://tg-6937a943-57ef-4bc3-88b0-3bce0d9a3290.tg-2635877100.i.tgcloud.io",
+  "offline_mode": false,
+  "schema_vertex_types": [
+    "Person",
+    "Company",
+    "Account",
+    "Address",
+    "Device",
+    "Transaction",
+    "FraudRing"
+  ],
+  "schema_edge_types": [
+    "OWNS",
+    "HAS_ACCOUNT",
+    "TRANSFERRED_TO",
+    "LOCATED_AT",
+    "ASSOCIATED_WITH",
+    "USES_DEVICE",
+    "ACCESSED_FROM",
+    "SENT_TRANSACTION",
+    "RECEIVED_TRANSACTION",
+    "REGISTERED_AT",
+    "BENEFITS_FROM",
+    "SHARES_DEVICE_WITH",
+    "SHARES_ADDRESS_WITH",
+    "PERSON_MEMBER_OF_RING",
+    "COMPANY_MEMBER_OF_RING",
+    "ACCOUNT_MEMBER_OF_RING",
+    "TRANSACTION_MEMBER_OF_RING",
+    "DEVICE_CONNECTED_TO_RING",
+    "ADDRESS_CONNECTED_TO_RING"
+  ],
+  "vertex_counts": {
+    "Person": 6000,
+    "Company": 5000,
+    "Account": 10000,
+    "Address": 4000,
+    "Device": 150,
+    "Transaction": 150054
+  },
+  "vertex_total": 175204,
+  "edge_counts": {
+    "OWNS": 10103,
+    "HAS_ACCOUNT": 10000,
+    "TRANSFERRED_TO": 5230,
+    "LOCATED_AT": 21998,
+    "ASSOCIATED_WITH": 400,
+    "USES_DEVICE": 319,
+    "ACCESSED_FROM": 0,
+    "SENT_TRANSACTION": 160051,
+    "RECEIVED_TRANSACTION": 160053,
+    "REGISTERED_AT": 0,
+    "BENEFITS_FROM": 1020,
+    "SHARES_DEVICE_WITH": 26,
+    "SHARES_ADDRESS_WITH": 3831,
+    "PERSON_MEMBER_OF_RING": 23,
+    "reverse_person_member_of_ring": 23,
+    "COMPANY_MEMBER_OF_RING": 23,
+    "reverse_company_member_of_ring": 23,
+    "ACCOUNT_MEMBER_OF_RING": 84,
+    "reverse_account_member_of_ring": 84,
+    "TRANSACTION_MEMBER_OF_RING": 74,
+    "reverse_transaction_member_of_ring": 74,
+    "DEVICE_CONNECTED_TO_RING": 0,
+    "reverse_device_connected_to_ring": 0,
+    "ADDRESS_CONNECTED_TO_RING": 0,
+    "reverse_address_connected_to_ring": 0
+  },
+  "edge_total": 373439,
+  "reverse_edges_observed": {
+    "reverse_person_member_of_ring": 23,
+    "reverse_company_member_of_ring": 23,
+    "reverse_account_member_of_ring": 84,
+    "reverse_transaction_member_of_ring": 74,
+    "reverse_device_connected_to_ring": 0,
+    "reverse_address_connected_to_ring": 0
+  },
+  "ring_probe": [
+    {
+      "ring_id": "FR-014",
+      "member_edges": 6,
+      "edges_by_kind": {
+        "reverse_person_member_of_ring": 3,
+        "reverse_company_member_of_ring": 3
+      }
+    },
+    {
+      "ring_id": "FR-006",
+      "member_edges": 19,
+      "edges_by_kind": {
+        "reverse_account_member_of_ring": 10,
+        "reverse_transaction_member_of_ring": 9
+      }
+    },
+    {
+      "ring_id": "FR-011",
+      "member_edges": 10,
+      "edges_by_kind": {
+        "reverse_person_member_of_ring": 5,
+        "reverse_company_member_of_ring": 5
+      }
+    },
+    {
+      "ring_id": "FR-FUNNEL-00",
+      "member_edges": 0,
+      "edges_by_kind": {}
+    },
+    {
+      "ring_id": "FR-005",
+      "member_edges": 10,
+      "edges_by_kind": {
+        "reverse_person_member_of_ring": 5,
+        "reverse_company_member_of_ring": 5
+      }
+    }
+  ],
+  "rings_with_members": 4,
+  "person_hop_probe": [
+    {
+      "person_id": "P-004984",
+      "edge_count": 8
+    },
+    {
+      "person_id": "P-004982",
+      "edge_count": 7
+    },
+    {
+      "person_id": "P-004786",
+      "edge_count": 6
+    },
+    {
+      "person_id": "P-004777",
+      "edge_count": 5
+    },
+    {
+      "person_id": "P-004581",
+      "edge_count": 8
+    }
+  ],
+  "installed_queries": {
+    "tg_ring_members": "installed (returned data)",
+    "tg_shortest_path": "installed (returned data)"
+  },
+  "cache": {
+    "hits": 0,
+    "misses": 0
+  },
+  "critical_findings": [],
+  "status": "HEALTHY",
+  "completed_at": 1778964478.2004411,
+  "elapsed_sec": 6.36
+}

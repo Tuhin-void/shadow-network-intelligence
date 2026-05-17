@@ -1,0 +1,584 @@
+{
+  "generated_at": 1778965953.0603943,
+  "profile": "small",
+  "query_count": 20,
+  "queries": [
+    {
+      "id": "ADV-RING-001",
+      "category": "ring_identification",
+      "question": "Identify all entities participating in fraud ring FR-001, including indirect members reachable through ring membership.",
+      "needs_capability": "multi-hop ring traversal via *_MEMBER_OF_RING edges",
+      "vectorrag_failure_mode": "cannot enumerate ring members; can only return chunks that textually mention FR-001",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 160,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 4,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 7936.4,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing layering_chain ring FR-001 (FR-001) \u2014 risk 0.00\n  \u2022 Account A-006696 (A-006696) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Account A-004548 (A-004548) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Account A-004601 (A-004601) \u2014 risk 0.00 [in 1 ring(s)]\nRING CONNECTIONS:\n  \u2022 FraudRing FR-001 \u2014 ACCOUNT_MEMBER_OF_RING\n  \u2022 FraudRing FR-001 \u2014 TRANSACTION_MEMBER_OF_RING\n  \u2022 Account A-006696 \u2014 ACCOUNT_MEMBER"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 96,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-HIDDEN-002",
+      "category": "hidden_beneficial_owner",
+      "question": "Who are the hidden beneficial owners of companies in the laundering network? Surface persons that benefit from companies without explicit ownership.",
+      "needs_capability": "BENEFITS_FROM traversal \u2014 semantic similarity cannot infer this",
+      "vectorrag_failure_mode": "no textual mention of 'beneficial owner' on most rows \u2014 semantic search misses entirely",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 187,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "latency_ms": 15457.1,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-011 (FR-011) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-005 (FR-005) \u2014 risk 0.00\n  \u2022 FraudRing Offshore Routing 0 (FR-OFFSHORE-00) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-011 "
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-COLLUSION-003",
+      "category": "shared_infrastructure",
+      "question": "Find pairs of persons that share addresses with shell-company controllers. These co-located individuals are likely co-conspirators.",
+      "needs_capability": "SHARES_ADDRESS_WITH + OWNS traversal \u2014 graph join semantically invisible",
+      "vectorrag_failure_mode": "address strings rarely repeat verbatim across persons; semantic embedding clusters addresses by city not by exact match",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 145,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 21653.7,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person John Petrov (P-004984) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Mary Petrov (P-004786) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-000637\n  \u2022 OWNS: Company C-000527\n  \u2022 HAS_ACCOUNT: Account A-002875\n  \u2022 HAS_ACCOUNT: Account A-006984\nSHARED INFRAS"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-DEVICE-004",
+      "category": "shared_device",
+      "question": "Identify persons sharing devices \u2014 a strong coordination signal. Which person clusters reuse the same device infrastructure?",
+      "needs_capability": "SHARES_DEVICE_WITH expansion",
+      "vectorrag_failure_mode": "device IDs are opaque (D-000003); embeddings cannot infer shared use",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 244,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 16843.4,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Mary Petrov (P-004786) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person John Novak (P-004581) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 Person Mary Jones (P-004569) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-003280\n  \u2022 OWNS: Company C-004240\n  \u2022 OWNS: Company C-004350\n  \u2022 OWNS: Company C-003170\nSHARED INFRASTRUCTURE:\n  \u2022 LOC"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-LAYERING-005",
+      "category": "multi_hop_laundering",
+      "question": "Trace a layering chain of 5+ accounts moving funds sequentially through a fraud ring. Output the chain in order.",
+      "needs_capability": "TRANSFERRED_TO multi-hop traversal preserving order",
+      "vectorrag_failure_mode": "individual transaction documents have no notion of chain order; chunking fragments the sequence",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 265,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "latency_ms": 19454.3,
+        "answer_preview": "SUSPECTS:\n  \u2022 Company Titan Investments (C-004921) \u2014 risk 0.00\n  \u2022 Company Strategic Holdings (C-004866) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing funnel_account ring FR-006 (FR-006) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-006 \u2014 ACCOUNT_MEMBER_OF_RING\n"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-FUNNEL-006",
+      "category": "funnel_pattern",
+      "question": "Find a funnel-account pattern where 5+ source accounts feed a single destination account. List the destination and its sources.",
+      "needs_capability": "fan-in degree analysis \u2014 purely structural",
+      "vectorrag_failure_mode": "no semantic feature corresponds to 'fan-in degree'; cannot rank accounts by structural centrality",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 244,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 1655.8,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Mary Petrov (P-004786) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person John Novak (P-004581) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 Person Mary Jones (P-004569) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-003280\n  \u2022 OWNS: Company C-004240\n  \u2022 OWNS: Company C-004350\n  \u2022 OWNS: Company C-003170\nSHARED INFRASTRUCTURE:\n  \u2022 LOC"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-OWNERSHIP-007",
+      "category": "circular_ownership",
+      "question": "Identify a circular ownership ring \u2014 a cycle of companies where each owns the next. List the cycle in order.",
+      "needs_capability": "cycle detection via OWNS edges",
+      "vectorrag_failure_mode": "circles are topological structures; semantic search has no concept of cycle",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 409,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "latency_ms": 15439.5,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-011 (FR-011) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-005 (FR-005) \u2014 risk 0.00\n  \u2022 FraudRing funnel_account ring FR-006 (FR-006) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-011 "
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 96,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-CROSSRING-008",
+      "category": "cross_ring",
+      "question": "Are there persons participating in multiple fraud rings simultaneously? Identify the most-connected persons across rings.",
+      "needs_capability": "structural cross-reference of ring memberships",
+      "vectorrag_failure_mode": "ring membership is implicit in the graph, not in any document text",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 86,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 6762.2,
+        "answer_preview": "SUSPECTS:\n  \u2022 Company Titan Investments (C-004921) \u2014 risk 0.00\n  \u2022 Company Strategic Holdings (C-004866) \u2014 risk 0.00\n  \u2022 Company Shadow Investments (C-004271) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 Person Michael Garcia \u2014 PERSON_MEMBER_OF_RING (via"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-TXRING-009",
+      "category": "transaction_in_ring",
+      "question": "List the suspicious transactions that are explicitly tagged as part of ring FR-001. Show their source and destination accounts.",
+      "needs_capability": "TRANSACTION_MEMBER_OF_RING + SENT/RECEIVED_TRANSACTION joins",
+      "vectorrag_failure_mode": "individual transaction documents don't carry their ring metadata in a way semantic search can rank by",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 160,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 4,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 8389.9,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing layering_chain ring FR-001 (FR-001) \u2014 risk 0.00\n  \u2022 Account A-006696 (A-006696) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Account A-004548 (A-004548) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Account A-007570 (A-007570) \u2014 risk 0.00 [in 1 ring(s)]\nRING CONNECTIONS:\n  \u2022 FraudRing FR-001 \u2014 ACCOUNT_MEMBER_OF_RING\n  \u2022 FraudRing FR-001 \u2014 TRANSACTION_MEMBER_OF_RING\n  \u2022 Account A-006696 \u2014 ACCOUNT_MEMBER"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 188,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-CONTROL-010",
+      "category": "hidden_controller",
+      "question": "Find the hidden controller of a shell-company cluster \u2014 a person who owns or benefits from multiple companies that share addresses.",
+      "needs_capability": "3-hop join: Person \u2192 OWNS/BENEFITS_FROM \u2192 Company \u2192 LOCATED_AT \u2192 Address \u2190 LOCATED_AT \u2190 Company",
+      "vectorrag_failure_mode": "the controller is not textually named as such; only the graph join reveals them",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 207,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 22627.6,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Mary Petrov (P-004786) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person John Novak (P-004581) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 Person Mary Jones (P-004569) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-003280\n  \u2022 OWNS: Company C-004240\n  \u2022 OWNS: Company C-004350\n  \u2022 OWNS: Company C-003170\nSHARED INFRASTRUCTURE:\n  \u2022 LOC"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-DEGREE-011",
+      "category": "centrality",
+      "question": "Which accounts are the most structurally central in the fraud topology, measured by number of fraud-relevant edges?",
+      "needs_capability": "graph degree analysis on fraud-relevant edge subset",
+      "vectorrag_failure_mode": "centrality is a graph-theoretic measure; no text proxy",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 49,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 9519.3,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing Offshore Routing 0 (FR-OFFSHORE-00) \u2014 risk 0.00\n  \u2022 Company Titan Investments (C-004921) \u2014 risk 0.00\n  \u2022 Company Strategic Holdings (C-004866) \u2014 risk 0.00\n  \u2022 Company Shadow Investments (C-004271) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 HAS_ACCOUNT: Account A-007083\n  \u2022 HAS_ACCOUNT: Account A-001602\n  \u2022 TRANSFERRED_TO: Account A-001606\nSHARED INFRASTRUCTURE:\n  \u2022 LOCATED_AT: Addre"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-PATH-012",
+      "category": "indirect_path",
+      "question": "Show the indirect connection path between Person P-000001 and any other Person who shares a device with them.",
+      "needs_capability": "specific named-entity multi-hop traversal",
+      "vectorrag_failure_mode": "no document mentions both persons together; semantic search returns docs about each in isolation",
+      "graphrag": {
+        "entities": 1,
+        "neighbors": 33,
+        "evidence": 4,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 14439.1,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Raj Al-Hassan (P-000001) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-003508\n  \u2022 OWNS: Company C-003398\n  \u2022 HAS_ACCOUNT: Account A-005895\n  \u2022 HAS_ACCOUNT: Account A-007481\nSHARED INFRASTRUCTURE:\n  \u2022 LOCATED_AT: Address ADDR-003416\n  \u2022 LOCATED_AT: Address ADDR-000785\n  \u2022 ASSOCIATED_WITH: Person P-000531\n  \u2022 USES_DEVICE: Device D-000041\nSIGNALS:\n  \u2022 Entity mix: Person=1"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-SANCTIONS-013",
+      "category": "sanctions_exposure",
+      "question": "Identify accounts owned by sanctioned persons, and trace any funds those accounts have transferred to non-sanctioned counterparties. The exposure path is the answer.",
+      "needs_capability": "attribute-filter (is_sanctioned) \u2192 HAS_ACCOUNT \u2192 TRANSFERRED_TO multi-hop",
+      "vectorrag_failure_mode": "sanctions status lives on the entity row, not in narrative text; vector search can't join across persons \u2192 accounts \u2192 transfers",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 145,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 44486.2,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person John Petrov (P-004984) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Mary Petrov (P-004786) \u2014 risk 0.00 [4 fraud-edges]\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-000637\n  \u2022 OWNS: Company C-000527\n  \u2022 HAS_ACCOUNT: Account A-002875\n  \u2022 HAS_ACCOUNT: Account A-006984\nSHARED INFRAS"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-INTERMEDIARY-014",
+      "category": "intermediary_discovery",
+      "question": "Identify accounts that act as transactional intermediaries \u2014 receiving funds from one fraud-ring account and forwarding them to a different fraud-ring account. These are the laundering middle layer.",
+      "needs_capability": "two-hop transfer pattern with ring-membership filter on endpoints",
+      "vectorrag_failure_mode": "intermediary status is purely topological \u2014 no semantic marker exists in the corpus",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 404,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 16446.1,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 Person Mary Jones (P-004569) \u2014 risk 0.00\n  \u2022 FraudRing funnel_account ring FR-006 (FR-006) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-006 \u2014 ACCOUNT_MEMBER_OF_RING\n  \u2022 FraudRing FR-006 \u2014 TRANSACTION_MEMBER_OF_RING\n  \u2022 Account A-002382 \u2014 ACCOUNT_MEMBER_OF_RING (via FR-00"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-CROSSCASE-015",
+      "category": "cross_case_linkage",
+      "question": "Identify entities that appear in multiple investigation cases at once \u2014 persons or companies that are members of one fraud ring AND share infrastructure (device or address) with members of a different fraud ring.",
+      "needs_capability": "multi-ring membership join with shared-infra cross-reference",
+      "vectorrag_failure_mode": "cross-case linkage is structural; the corpus documents do not name the cases together",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 298,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 11045.4,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\n  \u2022 Company Strategic Holdings (C-004866) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing funnel_account ring FR-006 (FR-006) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-006 \u2014 ACCOUNT_MEMBER_OF_RING\n  \u2022 Fr"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 96,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-RING-RECONSTRUCT-016",
+      "category": "fraud_ring_reconstruction",
+      "question": "Reconstruct fraud ring FR-002 from scratch using only graph topology: list every person, company, account, transaction, address, and device structurally tied to the ring via any *_MEMBER_OF_RING or *_CONNECTED_TO_RING edge.",
+      "needs_capability": "reverse-edge traversal from FraudRing vertex across 6 edge types",
+      "vectorrag_failure_mode": "no single document enumerates the ring composition; reconstruction requires graph projection",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 62,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 4,
+        "edge_types": [
+          "OWNS"
+        ],
+        "latency_ms": 36349.1,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing circular_ownership ring FR-002 (FR-002) \u2014 risk 0.00\n  \u2022 Person Viktor Singh (P-003329) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Person Chen Jones (P-001991) \u2014 risk 0.00 [in 1 ring(s)]\n  \u2022 Person Oleg Wang (P-005027) \u2014 risk 0.00 [in 1 ring(s)]\nRING CONNECTIONS:\n  \u2022 FraudRing FR-002 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-002 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 Person Viktor Singh \u2014 PERSON_M"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 96,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-NOMINEE-017",
+      "category": "nominee_director",
+      "question": "Find persons that own three or more shell companies. These are likely nominee directors \u2014 front-men obscuring true ownership.",
+      "needs_capability": "PERSON.OWNS Company aggregation + shell-company attribute filter",
+      "vectorrag_failure_mode": "the structural count of ownerships is invisible to per-document retrieval",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 160,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 15964.9,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\n  \u2022 Person Mohammed Brown (P-004212) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-011 (FR-011) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-011 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 Frau"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-FANOUT-018",
+      "category": "fan_out_distribution",
+      "question": "Find an account that distributes funds to 5 or more downstream accounts \u2014 the opposite of a funnel, indicating dispersion or splitting behavior.",
+      "needs_capability": "fan-out degree analysis on TRANSFERRED_TO",
+      "vectorrag_failure_mode": "fan-out is a structural property; no textual proxy exists",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 307,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 17211.2,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Viktor Jones (P-004777) \u2014 risk 0.00\n  \u2022 Person Patricia Ivanov (P-004982) \u2014 risk 0.00 [3 fraud-edges]\n  \u2022 FraudRing Funnel Account Network FR-FUNNEL-00 (FR-FUNNEL-00) \u2014 risk 0.00\n  \u2022 Company Titan Investments (C-004921) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-006 \u2014 ACCOUNT_MEMBER_OF_RING\n  \u2022 FraudRing FR-006 \u2014 TRANSACTION_MEMBER_OF_RING\n  \u2022 Account A-002382 \u2014 ACCOUNT_ME"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-PROXIMITY-019",
+      "category": "ring_proximity",
+      "question": "List persons that are not direct members of any fraud ring but are within two hops of a ring member through any structural edge. These are second-degree exposure.",
+      "needs_capability": "ring-membership traversal + 2-hop expansion with no ring filter on the candidate",
+      "vectorrag_failure_mode": "second-degree proximity is a graph-theoretic concept; vector retrieval has no notion of distance",
+      "graphrag": {
+        "entities": 5,
+        "neighbors": 407,
+        "evidence": 5,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "PERSON_MEMBER_OF_RING"
+        ],
+        "latency_ms": 9818.4,
+        "answer_preview": "SUSPECTS:\n  \u2022 FraudRing circular_ownership ring FR-014 (FR-014) \u2014 risk 0.00\n  \u2022 FraudRing funnel_account ring FR-006 (FR-006) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-011 (FR-011) \u2014 risk 0.00\n  \u2022 FraudRing circular_ownership ring FR-005 (FR-005) \u2014 risk 0.00\nRING CONNECTIONS:\n  \u2022 FraudRing FR-014 \u2014 PERSON_MEMBER_OF_RING\n  \u2022 FraudRing FR-014 \u2014 COMPANY_MEMBER_OF_RING\n  \u2022 FraudRing FR-006 "
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 96,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    },
+    {
+      "id": "ADV-LATENT-020",
+      "category": "latent_relationship",
+      "question": "Surface non-obvious links between Person P-000001 and any FraudRing \u2014 through transitive paths involving accounts, transactions, devices, or addresses. The path is the evidence.",
+      "needs_capability": "named-entity \u2192 multi-hop typed-edge traversal to FraudRing vertex",
+      "vectorrag_failure_mode": "latent links do not surface in textual chunks \u2014 the answer is the path itself",
+      "graphrag": {
+        "entities": 1,
+        "neighbors": 33,
+        "evidence": 4,
+        "structural_edges": 3,
+        "ring_touch_sum": 0,
+        "edge_types": [
+          "OWNS",
+          "SENT_TRANSACTION"
+        ],
+        "latency_ms": 14226.9,
+        "answer_preview": "SUSPECTS:\n  \u2022 Person Raj Al-Hassan (P-000001) \u2014 risk 0.00\nOWNERSHIP / FLOW:\n  \u2022 OWNS: Company C-003508\n  \u2022 OWNS: Company C-003398\n  \u2022 HAS_ACCOUNT: Account A-005895\n  \u2022 HAS_ACCOUNT: Account A-007481\nSHARED INFRASTRUCTURE:\n  \u2022 LOCATED_AT: Address ADDR-003416\n  \u2022 LOCATED_AT: Address ADDR-000785\n  \u2022 ASSOCIATED_WITH: Person P-000531\n  \u2022 USES_DEVICE: Device D-000041\nSIGNALS:\n  \u2022 Entity mix: Person=1"
+      },
+      "vectorrag_proxy": {
+        "structural_signal": 0,
+        "keyword_doc_hits": 0,
+        "limitation": "no graph traversal \u2014 cannot answer multi-hop / hidden-edge questions"
+      },
+      "pure_llm": {
+        "structural_signal": 0,
+        "retrieval": "none"
+      }
+    }
+  ],
+  "aggregate": {
+    "queries_with_structural_evidence": 20,
+    "total_neighbors_traversed": 4005,
+    "total_structural_edges": 60,
+    "avg_latency_ms": 16286.3,
+    "vectorrag_structural_total": 0,
+    "pure_llm_structural_total": 0
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "schema_version": 2,
+  "description": "Adversarial query suite designed to expose structural-intelligence gaps between PureLLM, VectorRAG, and GraphRAG. Every query needs multi-hop graph traversal or hidden-relationship discovery to answer correctly — capabilities VectorRAG fundamentally lacks. Queries are deterministic and reproducible against the `small` or `benchmark_dense` profile.",
+  "queries": [
+    {
+      "id": "ADV-RING-001",
+      "category": "ring_identification",
+      "question": "Identify all entities participating in fraud ring FR-001, including indirect members reachable through ring membership.",
+      "needs_capability": "multi-hop ring traversal via *_MEMBER_OF_RING edges",
+      "expected_signal_edges": ["PERSON_MEMBER_OF_RING", "ACCOUNT_MEMBER_OF_RING", "TRANSACTION_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "cannot enumerate ring members; can only return chunks that textually mention FR-001"
+    },
+    {
+      "id": "ADV-HIDDEN-002",
+      "category": "hidden_beneficial_owner",
+      "question": "Who are the hidden beneficial owners of companies in the laundering network? Surface persons that benefit from companies without explicit ownership.",
+      "needs_capability": "BENEFITS_FROM traversal — semantic similarity cannot infer this",
+      "expected_signal_edges": ["BENEFITS_FROM", "OWNS"],
+      "vectorrag_failure_mode": "no textual mention of 'beneficial owner' on most rows — semantic search misses entirely"
+    },
+    {
+      "id": "ADV-COLLUSION-003",
+      "category": "shared_infrastructure",
+      "question": "Find pairs of persons that share addresses with shell-company controllers. These co-located individuals are likely co-conspirators.",
+      "needs_capability": "SHARES_ADDRESS_WITH + OWNS traversal — graph join semantically invisible",
+      "expected_signal_edges": ["SHARES_ADDRESS_WITH", "LOCATED_AT", "OWNS"],
+      "vectorrag_failure_mode": "address strings rarely repeat verbatim across persons; semantic embedding clusters addresses by city not by exact match"
+    },
+    {
+      "id": "ADV-DEVICE-004",
+      "category": "shared_device",
+      "question": "Identify persons sharing devices — a strong coordination signal. Which person clusters reuse the same device infrastructure?",
+      "needs_capability": "SHARES_DEVICE_WITH expansion",
+      "expected_signal_edges": ["SHARES_DEVICE_WITH", "USES_DEVICE"],
+      "vectorrag_failure_mode": "device IDs are opaque (D-000003); embeddings cannot infer shared use"
+    },
+    {
+      "id": "ADV-LAYERING-005",
+      "category": "multi_hop_laundering",
+      "question": "Trace a layering chain of 5+ accounts moving funds sequentially through a fraud ring. Output the chain in order.",
+      "needs_capability": "TRANSFERRED_TO multi-hop traversal preserving order",
+      "expected_signal_edges": ["TRANSFERRED_TO", "TRANSACTION_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "individual transaction documents have no notion of chain order; chunking fragments the sequence"
+    },
+    {
+      "id": "ADV-FUNNEL-006",
+      "category": "funnel_pattern",
+      "question": "Find a funnel-account pattern where 5+ source accounts feed a single destination account. List the destination and its sources.",
+      "needs_capability": "fan-in degree analysis — purely structural",
+      "expected_signal_edges": ["TRANSFERRED_TO"],
+      "vectorrag_failure_mode": "no semantic feature corresponds to 'fan-in degree'; cannot rank accounts by structural centrality"
+    },
+    {
+      "id": "ADV-OWNERSHIP-007",
+      "category": "circular_ownership",
+      "question": "Identify a circular ownership ring — a cycle of companies where each owns the next. List the cycle in order.",
+      "needs_capability": "cycle detection via OWNS edges",
+      "expected_signal_edges": ["OWNS", "COMPANY_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "circles are topological structures; semantic search has no concept of cycle"
+    },
+    {
+      "id": "ADV-CROSSRING-008",
+      "category": "cross_ring",
+      "question": "Are there persons participating in multiple fraud rings simultaneously? Identify the most-connected persons across rings.",
+      "needs_capability": "structural cross-reference of ring memberships",
+      "expected_signal_edges": ["PERSON_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "ring membership is implicit in the graph, not in any document text"
+    },
+    {
+      "id": "ADV-TXRING-009",
+      "category": "transaction_in_ring",
+      "question": "List the suspicious transactions that are explicitly tagged as part of ring FR-001. Show their source and destination accounts.",
+      "needs_capability": "TRANSACTION_MEMBER_OF_RING + SENT/RECEIVED_TRANSACTION joins",
+      "expected_signal_edges": ["TRANSACTION_MEMBER_OF_RING", "SENT_TRANSACTION", "RECEIVED_TRANSACTION"],
+      "vectorrag_failure_mode": "individual transaction documents don't carry their ring metadata in a way semantic search can rank by"
+    },
+    {
+      "id": "ADV-CONTROL-010",
+      "category": "hidden_controller",
+      "question": "Find the hidden controller of a shell-company cluster — a person who owns or benefits from multiple companies that share addresses.",
+      "needs_capability": "3-hop join: Person → OWNS/BENEFITS_FROM → Company → LOCATED_AT → Address ← LOCATED_AT ← Company",
+      "expected_signal_edges": ["OWNS", "BENEFITS_FROM", "LOCATED_AT"],
+      "vectorrag_failure_mode": "the controller is not textually named as such; only the graph join reveals them"
+    },
+    {
+      "id": "ADV-DEGREE-011",
+      "category": "centrality",
+      "question": "Which accounts are the most structurally central in the fraud topology, measured by number of fraud-relevant edges?",
+      "needs_capability": "graph degree analysis on fraud-relevant edge subset",
+      "expected_signal_edges": ["TRANSFERRED_TO", "HAS_ACCOUNT", "ACCOUNT_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "centrality is a graph-theoretic measure; no text proxy"
+    },
+    {
+      "id": "ADV-PATH-012",
+      "category": "indirect_path",
+      "question": "Show the indirect connection path between Person P-000001 and any other Person who shares a device with them.",
+      "needs_capability": "specific named-entity multi-hop traversal",
+      "expected_signal_edges": ["SHARES_DEVICE_WITH", "USES_DEVICE"],
+      "vectorrag_failure_mode": "no document mentions both persons together; semantic search returns docs about each in isolation"
+    },
+    {
+      "id": "ADV-SANCTIONS-013",
+      "category": "sanctions_exposure",
+      "question": "Identify accounts owned by sanctioned persons, and trace any funds those accounts have transferred to non-sanctioned counterparties. The exposure path is the answer.",
+      "needs_capability": "attribute-filter (is_sanctioned) → HAS_ACCOUNT → TRANSFERRED_TO multi-hop",
+      "expected_signal_edges": ["HAS_ACCOUNT", "TRANSFERRED_TO", "SENT_TRANSACTION"],
+      "vectorrag_failure_mode": "sanctions status lives on the entity row, not in narrative text; vector search can't join across persons → accounts → transfers"
+    },
+    {
+      "id": "ADV-INTERMEDIARY-014",
+      "category": "intermediary_discovery",
+      "question": "Identify accounts that act as transactional intermediaries — receiving funds from one fraud-ring account and forwarding them to a different fraud-ring account. These are the laundering middle layer.",
+      "needs_capability": "two-hop transfer pattern with ring-membership filter on endpoints",
+      "expected_signal_edges": ["TRANSFERRED_TO", "ACCOUNT_MEMBER_OF_RING", "TRANSACTION_MEMBER_OF_RING"],
+      "vectorrag_failure_mode": "intermediary status is purely topological — no semantic marker exists in the corpus"
+    },
+    {
+      "id": "ADV-CROSSCASE-015",
+      "category": "cross_case_linkage",
+      "question": "Identify entities that appear in multiple investigation cases at once — persons or companies that are members of one fraud ring AND share infrastructure (device or address) with members of a different fraud ring.",
+      "needs_capability": "multi-ring membership join with shared-infra cross-reference",
+      "expected_signal_edges": ["PERSON_MEMBER_OF_RING", "COMPANY_MEMBER_OF_RING", "SHARES_DEVICE_WITH", "SHARES_ADDRESS_WITH"],
+      "vectorrag_failure_mode": "cross-case linkage is structural; the corpus documents do not name the cases together"
+    },
+    {
+      "id": "ADV-RING-RECONSTRUCT-016",
+      "category": "fraud_ring_reconstruction",
+      "question": "Reconstruct fraud ring FR-002 from scratch using only graph topology: list every person, company, account, transaction, address, and device structurally tied to the ring via any *_MEMBER_OF_RING or *_CONNECTED_TO_RING edge.",
+      "needs_capability": "reverse-edge traversal from FraudRing vertex across 6 edge types",
+      "expected_signal_edges": ["PERSON_MEMBER_OF_RING", "COMPANY_MEMBER_OF_RING", "ACCOUNT_MEMBER_OF_RING", "TRANSACTION_MEMBER_OF_RING", "DEVICE_CONNECTED_TO_RING", "ADDRESS_CONNECTED_TO_RING"],
+      "vectorrag_failure_mode": "no single document enumerates the ring composition; reconstruction requires graph projection"
+    },
+    {
+      "id": "ADV-NOMINEE-017",
+      "category": "nominee_director",
+      "question": "Find persons that own three or more shell companies. These are likely nominee directors — front-men obscuring true ownership.",
+      "needs_capability": "PERSON.OWNS Company aggregation + shell-company attribute filter",
+      "expected_signal_edges": ["OWNS"],
+      "vectorrag_failure_mode": "the structural count of ownerships is invisible to per-document retrieval"
+    },
+    {
+      "id": "ADV-FANOUT-018",
+      "category": "fan_out_distribution",
+      "question": "Find an account that distributes funds to 5 or more downstream accounts — the opposite of a funnel, indicating dispersion or splitting behavior.",
+      "needs_capability": "fan-out degree analysis on TRANSFERRED_TO",
+      "expected_signal_edges": ["TRANSFERRED_TO"],
+      "vectorrag_failure_mode": "fan-out is a structural property; no textual proxy exists"
+    },
+    {
+      "id": "ADV-PROXIMITY-019",
+      "category": "ring_proximity",
+      "question": "List persons that are not direct members of any fraud ring but are within two hops of a ring member through any structural edge. These are second-degree exposure.",
+      "needs_capability": "ring-membership traversal + 2-hop expansion with no ring filter on the candidate",
+      "expected_signal_edges": ["PERSON_MEMBER_OF_RING", "SHARES_DEVICE_WITH", "SHARES_ADDRESS_WITH", "OWNS", "BENEFITS_FROM"],
+      "vectorrag_failure_mode": "second-degree proximity is a graph-theoretic concept; vector retrieval has no notion of distance"
+    },
+    {
+      "id": "ADV-LATENT-020",
+      "category": "latent_relationship",
+      "question": "Surface non-obvious links between Person P-000001 and any FraudRing — through transitive paths involving accounts, transactions, devices, or addresses. The path is the evidence.",
+      "needs_capability": "named-entity → multi-hop typed-edge traversal to FraudRing vertex",
+      "expected_signal_edges": ["HAS_ACCOUNT", "SENT_TRANSACTION", "TRANSACTION_MEMBER_OF_RING", "USES_DEVICE", "DEVICE_CONNECTED_TO_RING", "LOCATED_AT", "ADDRESS_CONNECTED_TO_RING"],
+      "vectorrag_failure_mode": "latent links do not surface in textual chunks — the answer is the path itself"
+    }
+  ]
+}

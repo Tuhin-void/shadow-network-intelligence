@@ -22,6 +22,10 @@ superiority quantitatively and operationally.
 - **11× fewer tokens per answer** than VectorRAG while producing the
   only answer with grounded structural evidence
 - **<50 ms warm-cache replay** on identical queries (vs 7–23 s cold)
+- **Semantic enrichment corpus:** 35,402 grounded intelligence
+  documents · ~6.1M tokens · 25,238 real graph IDs referenced ·
+  generated deterministically from the live topology, no LLM cost
+  (see [`make enrich-corpus`](#5-run-the-orchestrator--ui))
 - **Honest disclosures:** mock LLM is labelled mock; offline-fallback
   is labelled offline; planned connectors are labelled planned; no
   fabricated metrics anywhere
@@ -197,28 +201,47 @@ Quick version:
 
 ## Quickstart
 
+> `make help` lists every target. The flow below is what a new engineer
+> would run on first clone.
+
 ### 1. Environment
 
 ```bash
-cp .env.example .env    # add TIGERGRAPH_HOST, TIGERGRAPH_GSQL_SECRET,
-                        # TIGERGRAPH_GRAPH, NIM_API_KEY (optional)
-pip install -r requirements.txt
+cp .env.example .env    # fill in TIGERGRAPH_HOST, TIGERGRAPH_GSQL_SECRET,
+                        # TIGERGRAPH_GRAPH, optionally NIM_API_KEY
+make install-all        # pip install + npm install in 8_dashboard_ui/
 ```
+
+`.env.example` is the canonical source of every env var the platform
+reads. Required vs optional is clearly marked.
 
 ### 2. Generate data (small profile, ~30 s)
 
 ```bash
-python -m 1_data_engine generate --profile small --new-pipeline
+make generate-data
+# or: python -m 1_data_engine generate --profile small --new-pipeline
 ```
 
-### 3. Load into TigerGraph
+### 3. Build the enriched intelligence corpus (~1.5 s, free)
+
+```bash
+make enrich-corpus
+# Output: outputs/small/enriched_corpus/small_intelligence.jsonl
+#         35,402 grounded AML/compliance documents, ~6.1M tokens
+```
+
+Pure-python templates, deterministic, no LLM calls. Re-runs are
+idempotent (same seed → identical output). See
+[`10_research/07_semantic_enrichment_pipeline.md`](./10_research/07_semantic_enrichment_pipeline.md).
+
+### 4. Load into TigerGraph
 
 ```bash
 python -m 3_graph_intelligence_core load small
 python -m 3_graph_intelligence_core health
 ```
 
-### 4. Validate end-to-end
+### 5. Validate end-to-end
 
 ```bash
 python3 scripts/tigergraph_validate.py
@@ -228,21 +251,24 @@ python3 scripts/benchmark_full_report.py --profile small
 cat scripts/benchmark_full_report.md
 ```
 
-### 5. Run the orchestrator + UI
+### 6. Run the orchestrator + UI
 
 ```bash
-# Terminal 1 — orchestrator API (port 8000)
-PYTHONPATH=. uvicorn main:app --app-dir 4_orchestrator_api --port 8000
+# Terminal 1 — orchestrator API on :8000
+make dev-backend
 
-# Terminal 2 — dashboard (Vite dev, port 5173)
-cd 8_dashboard_ui && npm install && npm run dev
+# Terminal 2 — dashboard dev server on :5173
+make dev-frontend
+
+# Optional: quick sanity check across all endpoints
+make smoke-test
 ```
 
 Open `http://localhost:5173`. The TopBar pill flips **LIVE** within
 seconds. Use the Sources page (`/sources`) to verify environment
 readiness, then run a custom investigation from Home (`/home`).
 
-### 6. Investigate from the CLI
+### 7. Investigate from the CLI
 
 ```bash
 # Run the 5-agent swarm on a curated preset

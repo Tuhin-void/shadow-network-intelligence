@@ -95,45 +95,52 @@ node_modules/
 .npm/
 
 # ----------------------------
-# Build Outputs
+# Build outputs (frontend + reports)
 # ----------------------------
 
 generated_reports/
-
-# IMPORTANT:
-# Keep outputs tracked
-# outputs/
-
-# IMPORTANT:
-# Keep ChromaDB tracked
-# outputs/chroma_db/
+8_dashboard_ui/dist/
 
 # ----------------------------
-# Benchmark Results
+# Runtime-generated data
 # ----------------------------
+# Everything under outputs/ is locally generated:
+#   outputs/{profile}/csv/                — data engine output
+#   outputs/{profile}/json/               — per-entity JSON
+#   outputs/{profile}/enriched_corpus/    — semantic intelligence corpus (~42MB)
+#   outputs/{profile}/documents/          — data_corpus_enricher dossiers
+#   outputs/{profile}/chroma_db/          — VectorRAG vector store
+# Regenerate with:  make generate-data && make enrich-corpus
+outputs/
+1_data_engine/outputs/
+2_baseline_systems/outputs/
+# Investigation archive (disk-backed, written by the orchestrator at runtime).
+# Bounded LRU prune at SNI_INVESTIGATION_ARCHIVE_MAX entries.
+4_orchestrator_api/outputs/
+
+# Benchmark + cache artifacts
 benchmark_results.json
 *.benchmark
-outputs/
-1_data_engine/outputs/
-2_baseline_systems/outputs/
-8_dashboard_ui/node_modules/
-*.json
-configs/server_config.json
 3_graph_intelligence_core/db/
 
-# Data outputs
-outputs/
-1_data_engine/outputs/
-2_baseline_systems/outputs/
-3_graph_intelligence_core/db/
-
-# Dashboard
-8_dashboard_ui/node_modules/
-
-# Large JSON files
+# Local server config (may contain endpoints / per-instance settings)
 configs/server_config.json
 
-# ChromaDB
+# ChromaDB persistence
 *.bin
 *.parquet
+
+# Dashboard local env (per-developer Vite env overrides)
+8_dashboard_ui/.env
+8_dashboard_ui/.env.local
+
+# ----------------------------
+# Exceptions — keep these tracked
+# ----------------------------
+# `outputs/` is ignored globally, but the shadow_network_sample_dataset
+# and demo/mock JSON fixtures used by the platform must stay in git.
+# Negation rules are matched bottom-up, so these belong here.
+!shadow_network_sample_dataset/**
+!demo_data/**
+!mock_responses/**
 

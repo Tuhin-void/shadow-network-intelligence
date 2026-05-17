@@ -149,6 +149,28 @@ export interface QuantitativeBenchmark {
     totalNeighbors: number;
   };
   scoring: { enabled: boolean; semanticMethods: string[] } | null;
+  /** Provider transparency + enrichment corpus size. Surfaced so the UI
+   *  can show "VectorRAG would index N chunks" rather than bare "0 sources". */
+  retrievalContext: null | {
+    profile: string;
+    vectorProvider: string;
+    llmProvider: string;
+    graphProvider: string;
+    embedderProvider: string;
+    vectorragMode: string;
+    semanticCorpusSize: number | null;
+    enrichmentTokenCount: number | null;
+    enrichedDocTypes: string[];
+    graphragMode: string;
+  };
+  /** Cold-sweep framing — explicit so the UI doesn't misrepresent
+   *  benchmark sweep latency as steady-state operational latency. */
+  latencyContext: null | {
+    sweepMode: string;
+    explanation: string;
+    coldAvgRetrievalMs: number;
+    warmReplayMs: string;
+  };
   /** Honest disclosures from the backend (latency-is-mock, etc.). */
   disclosure: Record<string, string>;
 }
@@ -306,6 +328,28 @@ export function transformQuantitativeBenchmark(
       : null,
     scoring: q.scoring
       ? { enabled: q.scoring.enabled, semanticMethods: q.scoring.semantic_methods ?? [] }
+      : null,
+    retrievalContext: q.retrieval_context
+      ? {
+          profile:              q.retrieval_context.profile,
+          vectorProvider:       q.retrieval_context.vector_provider,
+          llmProvider:          q.retrieval_context.llm_provider,
+          graphProvider:        q.retrieval_context.graph_provider,
+          embedderProvider:     q.retrieval_context.embedder_provider,
+          vectorragMode:        q.retrieval_context.vectorrag_mode,
+          semanticCorpusSize:   q.retrieval_context.semantic_corpus_size,
+          enrichmentTokenCount: q.retrieval_context.enrichment_token_count,
+          enrichedDocTypes:     q.retrieval_context.enriched_doc_types ?? [],
+          graphragMode:         q.retrieval_context.graphrag_mode,
+        }
+      : null,
+    latencyContext: q.latency_context
+      ? {
+          sweepMode:          q.latency_context.sweep_mode,
+          explanation:        q.latency_context.explanation,
+          coldAvgRetrievalMs: q.latency_context.cold_avg_retrieval_ms,
+          warmReplayMs:       q.latency_context.warm_replay_ms,
+        }
       : null,
     disclosure: q.disclosure ?? {},
   };

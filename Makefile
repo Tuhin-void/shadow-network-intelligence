@@ -1,19 +1,44 @@
-.PHONY: help install setup dev_setup run run-demo clean test benchmark
+.PHONY: help install install-all setup dev_setup run dev-backend dev-frontend dev-instructions run-demo clean test benchmark smoke-test type-check enrich-corpus enrich-corpus-test
 
 help:
-	@echo "Shadow Network Intelligence - Available Commands"
+	@echo "Shadow Network Intelligence — Available Commands"
 	@echo ""
-	@echo "  make install      - Install dependencies"
-	@echo "  make setup       - Initial setup (creates folders, copies configs)"
-	@echo "  make dev_setup   - Full development environment setup"
-	@echo "  make run         - Start the API server"
-	@echo "  make run-demo    - Start demo environment"
-	@echo "  make benchmark  - Run benchmark comparison"
-	@echo "  make test       - Run tests"
-	@echo "  make clean      - Clean generated files"
+	@echo "  ── Setup ────────────────────────────────────────────────"
+	@echo "  make install          - Install Python deps"
+	@echo "  make install-all      - Install Python + frontend deps"
+	@echo "  make setup            - Initial setup (folders + scripts chmod)"
+	@echo "  make dev_setup        - Full development environment setup"
+	@echo ""
+	@echo "  ── Run (two terminals recommended) ──────────────────────"
+	@echo "  make dev-backend      - Start orchestrator API (port 8000)"
+	@echo "  make dev-frontend     - Start dashboard dev server (port 5173)"
+	@echo "  make dev-instructions - Print run instructions for both"
+	@echo "  make run              - Same as dev-backend (alias)"
+	@echo "  make run-demo         - Start demo environment"
+	@echo ""
+	@echo "  ── Data + corpus ────────────────────────────────────────"
+	@echo "  make generate-data    - Generate small synthetic profile"
+	@echo "  make enrich-corpus    - Build semantic intelligence corpus (~6M tokens)"
+	@echo "  make enrich-corpus-test - Smoke test corpus build (--limit 50)"
+	@echo "  make hydrate          - Load CSVs into TigerGraph"
+	@echo ""
+	@echo "  ── Quality ──────────────────────────────────────────────"
+	@echo "  make benchmark        - Run benchmark comparison"
+	@echo "  make smoke-test       - Quick API health + endpoint sanity check"
+	@echo "  make test             - Run pytest suite"
+	@echo "  make type-check       - tsc --noEmit on the dashboard"
+	@echo ""
+	@echo "  ── Cleanup ──────────────────────────────────────────────"
+	@echo "  make clean            - Remove __pycache__, .pyc, generated_reports"
+	@echo ""
+	@echo "  ── Docker ───────────────────────────────────────────────"
+	@echo "  make docker-up | docker-down | docker-logs"
 
 install:
 	pip install -r requirements.txt
+
+install-all: install
+	cd 8_dashboard_ui && npm install
 
 setup:
 	@echo "Setting up project structure..."
@@ -24,8 +49,24 @@ dev_setup:
 	@echo "Setting up development environment..."
 	@bash 9_devops/scripts/dev_setup.sh
 
-run:
-	cd 4_orchestrator_api && uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# Canonical backend entrypoint. PYTHONPATH=. is required — without it
+# imports like `from shared.logging_utils.logwriter import info` fail.
+dev-backend:
+	PYTHONPATH=. uvicorn main:app --app-dir 4_orchestrator_api --host 0.0.0.0 --port 8000 --reload
+
+# Alias kept for backwards compatibility.
+run: dev-backend
+
+dev-frontend:
+	cd 8_dashboard_ui && npm run dev
+
+dev-instructions:
+	@echo "Run these in TWO terminals:"
+	@echo ""
+	@echo "  Terminal 1:  make dev-backend     # API on http://localhost:8000"
+	@echo "  Terminal 2:  make dev-frontend    # Dashboard on http://localhost:5173"
+	@echo ""
+	@echo "Then open http://localhost:5173 — the TopBar pill flips LIVE within seconds."
 
 run-demo:
 	@echo "Starting demo environment..."
@@ -43,15 +84,39 @@ test-unit:
 test-integration:
 	pytest tests/integration/ -v
 
+# Quick post-startup sanity check — assumes backend is on :8000.
+# Fails loud if any expected endpoint returns non-2xx.
+smoke-test:
+	@echo "  → /health"
+	@curl -fsS http://localhost:8000/api/v1/health > /dev/null && echo "    ✓ healthy" || (echo "    ✗ backend not responding"; exit 1)
+	@echo "  → /orchestrator/status"
+	@curl -fsS http://localhost:8000/api/v1/orchestrator/status > /dev/null && echo "    ✓ ok" || (echo "    ✗ orchestrator status failed"; exit 1)
+	@echo "  → /ingest/environment"
+	@curl -fsS http://localhost:8000/api/v1/ingest/environment > /dev/null && echo "    ✓ ok" || (echo "    ✗ environment endpoint failed"; exit 1)
+	@echo "  → /benchmark/service/status"
+	@curl -fsS http://localhost:8000/api/v1/benchmark/service/status > /dev/null && echo "    ✓ ok" || (echo "    ✗ benchmark service failed"; exit 1)
+	@echo "  → /orchestrator/intent (rank_suspects)"
+	@curl -fsS -X POST http://localhost:8000/api/v1/orchestrator/intent \
+		-H 'Content-Type: application/json' \
+		-d '{"query":"who is the most suspected"}' | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['kind']=='rank_suspects', d; print('    ✓ intent=rank_suspects')"
+	@echo "  → frontend (Vite dev server, optional)"
+	@curl -fsS --max-time 2 http://localhost:5173/ > /dev/null 2>&1 && echo "    ✓ vite up" || echo "    ⚠ vite not running (start with: make dev-frontend)"
+
+# Frontend type check — useful before committing UI changes.
+type-check:
+	cd 8_dashboard_ui && npx tsc --noEmit
+
+# CAREFUL: does NOT wipe outputs/ (which contains the data engine output,
+# enriched corpus, and investigation archive — too expensive to regenerate
+# accidentally). Use `make reset` for a full wipe.
 clean:
-	@echo "Cleaning generated files..."
-	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo "Cleaning ephemeral artifacts..."
+	@find . -type d -name "__pycache__" -not -path "./venv/*" -not -path "./node_modules/*" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -not -path "./venv/*" -not -path "./node_modules/*" -delete 2>/dev/null || true
 	@rm -rf .pytest_cache 2>/dev/null || true
+	@rm -rf 8_dashboard_ui/dist 2>/dev/null || true
 	@rm -rf generated_reports/* 2>/dev/null || true
-	@rm -rf outputs/* 2>/dev/null || true
-	@rm -rf cache/*.json 2>/dev/null || true
-	@echo "Clean complete."
+	@echo "Clean complete. (outputs/, cache/, and corpus are preserved — use 'make reset' for a full wipe.)"
 
 # Docker commands
 docker-build:

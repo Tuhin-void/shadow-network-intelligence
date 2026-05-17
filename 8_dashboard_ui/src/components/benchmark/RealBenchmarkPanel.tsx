@@ -12,6 +12,7 @@ import { TopologyComparisonChamber } from './TopologyComparisonChamber';
 import { EvidenceTable } from './EvidenceTable';
 import { MethodologyCard } from './MethodologyCard';
 import { LiveBenchmarkConsole } from './LiveBenchmarkConsole';
+import { StructuralVerdictExplainerLoader } from './StructuralVerdictExplainerLoader';
 import { cn } from '@/lib/utils';
 
 /**
@@ -154,6 +155,7 @@ export function RealBenchmarkPanel() {
       <LiveBenchmarkConsole onRunComplete={() => setQuantReloadToken((t) => t + 1)} />
       <StructuralVerdict data={adv} />
       <QuantitativeComparison reloadToken={quantReloadToken} />
+      <StructuralVerdictExplainerLoader reloadToken={quantReloadToken} />
       <TopologyComparisonChamber />
       <KeyMetricsBoard bundle={bundle} />
       <EvidenceTable data={adv} />
