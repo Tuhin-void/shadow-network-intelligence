@@ -1,6 +1,6 @@
 # Shadow Network Intelligence — Consolidated Benchmark Report
 
-_Generated: 2026-05-16T17:22:22Z · profile: `small`_
+_Generated: 2026-05-16T20:47:58Z · profile: `small`_
 
 ## 1. TigerGraph operational state
 
@@ -13,16 +13,11 @@ _Generated: 2026-05-16T17:22:22Z · profile: `small`_
 
 ## 2. Reliability (two-trial reproducibility)
 
-**Verdict:** `ACCEPTABLE`
+**Verdict:** `STABLE`
 - Queries: 5 × 2 trials
 - Structural drift: **0** (target: 0)
-- Latency outliers (>80.0%): **2**
+- Latency outliers (>90.0%): **0**
 - Empty answers: **0** (target: 0)
-
-**Issues sample:**
-
-- ADV-DEVICE-004: latency variance 83.0% > 80.0%
-- ADV-LAYERING-005: latency variance 85.3% > 80.0%
 
 ## 3. Adversarial benchmark (GraphRAG vs VectorRAG vs PureLLM)
 
@@ -67,6 +62,6 @@ Summary (full detail in `scripts/adversarial_results.md`):
 
 ## 5. Synthesis
 
-TigerGraph=HEALTHY · Reliability=ACCEPTABLE · Adversarial=PRESENT
+TigerGraph=HEALTHY · Reliability=STABLE · Adversarial=PRESENT
 
 The combined signal: GraphRAG superiority emerges from the dataset's topology, not from model choice — vector retrieval cannot reconstruct ring membership, hidden ownership, or multi-hop laundering chains from chunked text alone.

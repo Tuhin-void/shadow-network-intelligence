@@ -195,13 +195,29 @@ interface IntelState {
   runDeepInvestigation: (presetKey: string) => Promise<void>;
   /** Run a deep investigation for an ad-hoc query. */
   runDeepQuery: (query: string, opts?: { top_k?: number; depth?: number }) => Promise<void>;
+  /**
+   * Stream an ad-hoc deep investigation. Drives the unfolding UI:
+   *   • each backend SSE event → pushEvent (TopBar ticker, timeline)
+   *   • report.finalized → activateLiveSnapshot (graph + IntelligencePanel)
+   *   • deep_report.finalized → cognitiveReport set (cognitive tab)
+   */
+  runCustomDeepStream: (query: string, opts?: { top_k?: number; depth?: number }) => Promise<void>;
+  /** Abort any in-flight custom-query SSE stream. */
+  stopCustomDeepStream: () => void;
   /** Clear cognitive state. */
   clearCognitiveReport: () => void;
+
+  /** Session-local recent custom queries (most recent first, capped). */
+  customQueryHistory: string[];
+  /** Append a query to history (dedup; cap at 8). Called automatically by the stream action. */
+  recordCustomQuery: (query: string) => void;
 }
 
 let handle: StreamHandle | null = null;
 /** Module-scoped abort controller for the active live SSE stream. */
 let liveAbort: AbortController | null = null;
+/** Module-scoped abort controller for an in-flight custom deep stream. */
+let customAbort: AbortController | null = null;
 
 function applyEventToState(state: IntelState, e: StreamEvent): Partial<IntelState> {
   const discovered = new Set(state.discoveredEntities);
@@ -645,6 +661,14 @@ export const useIntelStore = create<IntelState>((set, get) => ({
   cognitiveReport: null,
   cognitivePhase: 'idle',
   cognitiveError: null,
+  customQueryHistory: [],
+
+  recordCustomQuery: (query) => {
+    const q = (query || '').trim();
+    if (!q) return;
+    const prev = get().customQueryHistory.filter((x) => x !== q);
+    set({ customQueryHistory: [q, ...prev].slice(0, 8) });
+  },
 
   runDeepInvestigation: async (presetKey) => {
     set({ cognitivePhase: 'running', cognitiveError: null });
@@ -686,6 +710,118 @@ export const useIntelStore = create<IntelState>((set, get) => ({
 
   clearCognitiveReport: () =>
     set({ cognitiveReport: null, cognitivePhase: 'idle', cognitiveError: null }),
+
+  runCustomDeepStream: async (query, opts) => {
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      set({
+        cognitivePhase: 'error',
+        cognitiveError: 'enter an investigation query',
+      });
+      return;
+    }
+    if (customAbort) customAbort.abort();
+    customAbort = new AbortController();
+    get().recordCustomQuery(trimmed);
+    set({
+      activeLivePresetKey: null,
+      liveStreamPhase: 'streaming',
+      liveStreamError: null,
+      cognitivePhase: 'running',
+      cognitiveError: null,
+      cognitiveReport: null,
+      events: [],
+      sectionCounts: {},
+      progress: 0,
+    });
+    try {
+      let seq = 0;
+      for await (const env of api.streamInvestigateDeep(
+        {
+          query: trimmed,
+          top_k: opts?.top_k ?? 5,
+          depth: opts?.depth ?? 2,
+        },
+        customAbort.signal,
+      )) {
+        // 1. Activate the live graph snapshot when the investigation report
+        //    finalizes (mid-stream, before the deep report).
+        if (env.kind === 'report.finalized') {
+          const meta = {
+            key: 'custom',
+            title: trimmed.length > 60 ? trimmed.slice(0, 57) + '…' : trimmed,
+            tone: 'violet' as const,
+          };
+          const report = env.payload as unknown as Parameters<
+            typeof buildSnapshotFromBackendReport
+          >[1];
+          const snap = buildSnapshotFromBackendReport(meta, report);
+          get().activateLiveSnapshot(snap);
+        }
+        // 2. Capture the deep report → set cognitive state.
+        if (env.kind === 'deep_report.finalized') {
+          const payload = env.payload as any;
+          const deep: BackendDeepReport = {
+            query: trimmed,
+            elapsed_ms: payload?.elapsed_ms ?? 0,
+            investigation: payload?.investigation ?? null,
+            swarm: payload?.swarm ?? {
+              query: trimmed,
+              investigation_id: '',
+              elapsed_ms: 0,
+              agents: [],
+              coordinator_summary: '',
+              consolidated_metrics: {},
+            },
+            reasoning: payload?.reasoning ?? {
+              query: trimmed,
+              overall_confidence: 0,
+              headline: '',
+              body: '',
+              key_claims: [],
+              contradictions: [],
+              explanations: {},
+            },
+            metadata: payload?.metadata ?? {},
+          };
+          set({ cognitiveReport: transformDeepReport(deep), cognitivePhase: 'complete' });
+        }
+        // 3. Push every event into the timeline ticker.
+        const ev = transformBackendStreamEvent(env, { seqOffset: 0 });
+        if (ev) {
+          seq += 1;
+          const stamped: StreamEvent = { ...ev, seq };
+          const progress =
+            stamped.kind === 'session.complete' ? 1
+            : Math.min(0.95, (get().progress ?? 0) + 0.05);
+          get().pushEvent(stamped, progress);
+        }
+      }
+      set({ liveStreamPhase: 'complete', progress: 1 });
+    } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') {
+        set({ liveStreamPhase: 'idle', cognitivePhase: 'idle' });
+      } else {
+        const msg = e instanceof Error ? e.message : String(e);
+        set({
+          liveStreamPhase: 'error',
+          liveStreamError: msg,
+          cognitivePhase: 'error',
+          cognitiveError: msg,
+        });
+      }
+    } finally {
+      customAbort = null;
+    }
+  },
+
+  stopCustomDeepStream: () => {
+    if (customAbort) {
+      customAbort.abort();
+      customAbort = null;
+    }
+    set({ liveStreamPhase: 'idle', cognitivePhase: 'idle' });
+  },
 
   activateLiveSnapshot: (snap) => {
     // Stop any mock stream that's running so we don't interleave timelines.

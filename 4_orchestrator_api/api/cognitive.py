@@ -227,6 +227,16 @@ def investigate_deep_stream(request: Request, body: DeepInvestigationRequest):
                 "swarm": sr.to_dict(),
                 "reasoning": syn.to_dict(),
             }
+            # Attach deep report to the archived investigation so the
+            # Recent Investigations panel can replay the full cognitive
+            # layer instead of just the shallow report.
+            try:
+                inv_id = (engine_result_holder.get("report") or {}).get("investigation_id")
+                if inv_id:
+                    from orchestration.archive import get_archive
+                    get_archive().attach_deep_report(inv_id, deep)
+            except Exception:
+                pass
             yield (f"event: deep_report.finalized\n"
                    f"data: {json.dumps({'kind':'deep_report.finalized','seq':seq,'payload':deep}, default=str)}\n\n")
 

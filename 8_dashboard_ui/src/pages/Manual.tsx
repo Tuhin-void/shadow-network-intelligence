@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Brain,
   ChevronLeft,
@@ -7,6 +8,7 @@ import {
   FileText,
   RotateCcw,
   ScanSearch,
+  Scale,
   Target,
 } from 'lucide-react';
 import { useIntelStore } from '@/store/intel-store';
@@ -17,12 +19,14 @@ import { IntelligencePanel } from '@/components/investigation/IntelligencePanel'
 import { TimelineFeed } from '@/components/investigation/TimelineFeed';
 import { CommandDock } from '@/components/investigation/CommandDock';
 import { CognitivePanel } from '@/components/cognitive/CognitivePanel';
+import { CustomInvestigationInput } from '@/components/investigation/CustomInvestigationInput';
+import { AdHocComparisonPanel } from '@/components/investigation/AdHocComparisonPanel';
 import { TacticalRail } from '@/components/layout/TacticalRail';
 import { WorkspaceTabs } from '@/components/layout/WorkspaceTabs';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
-type RightTab = 'inspector' | 'report' | 'cognitive';
+type RightTab = 'inspector' | 'report' | 'cognitive' | 'compare';
 
 /**
  * Manual — analyst workstation.
@@ -50,9 +54,28 @@ export function Manual() {
     setRunMode,
     narration,
   } = useIntelStore();
+  const runCustomDeep = useIntelStore((s) => s.runCustomDeepStream);
   const total = active.stream.length;
 
   const [rightTab, setRightTab] = useState<RightTab>('inspector');
+
+  // Optional `?q=...` query-param seed. When the analyst arrives here from
+  // the Sources page (or any other handoff) with a pre-formed query, kick
+  // off the real investigation automatically. Single-shot: we strip the
+  // param after dispatch so a remount doesn't re-fire.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const seed = searchParams.get('q');
+    if (!seed) return;
+    const trimmed = seed.trim();
+    if (!trimmed) return;
+    // Fire and forget — errors surface in the store / UI.
+    void runCustomDeep(trimmed, { top_k: 5, depth: 2 });
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setRunMode('manual');
@@ -73,6 +96,7 @@ export function Manual() {
       if (e.key === '1') setRightTab('inspector');
       if (e.key === '2') setRightTab('report');
       if (e.key === '3') setRightTab('cognitive');
+      if (e.key === '4') setRightTab('compare');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -104,19 +128,35 @@ export function Manual() {
 
         {/* CENTER — graph */}
         <div className="relative surface overflow-hidden min-h-0">
-          {/* Top label strip */}
-          <div className="absolute top-0 left-0 right-0 h-7 flex items-center px-3 z-30 bg-[rgba(7,9,14,0.55)] backdrop-blur-sm border-b border-[var(--color-line-soft)]">
-            <Target className="w-3 h-3 text-[var(--color-ice-400)]" />
-            <span className="heading-tactical ml-2">Topology</span>
-            <span className="chip chip-violet ml-2">manual</span>
+          {/* Top label strip — operational identity on the left, ambient
+              meta on the right. The investigation input is given its own
+              dominant row directly below so it reads as a first-class
+              workstation affordance, not a header decoration. */}
+          <div className="absolute top-0 left-0 right-0 h-8 flex items-center px-3 z-30 bg-[rgba(7,9,14,0.55)] backdrop-blur-sm border-b border-[var(--color-line-soft)] gap-2">
+            <Target className="w-3 h-3 text-[var(--color-ice-400)] shrink-0" />
+            <span className="heading-tactical shrink-0">Topology</span>
+            <span className="chip chip-violet shrink-0">manual</span>
             <NarrationBadge narration={narration} />
-            <span className="ml-auto font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-              click any node to inspect · ← → step
+            <span className="ml-auto font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] shrink-0">
+              click any node · ← → step
+            </span>
+          </div>
+          {/* Dedicated investigation input row — first-class operator surface.
+              Runs through the real /investigate/deep/stream pipeline. */}
+          <div className="absolute top-8 left-0 right-0 h-10 flex items-center gap-2 px-3 z-30 bg-[rgba(7,9,14,0.55)] backdrop-blur-sm border-b border-[var(--color-line-soft)]">
+            <span className="font-mono text-[9.5px] tracking-[0.28em] uppercase text-[var(--color-text-muted)] shrink-0">
+              custom investigation
+            </span>
+            <div className="flex-1 max-w-[640px]">
+              <CustomInvestigationInput variant="inline" autoNavigate={false} />
+            </div>
+            <span className="ml-auto font-mono text-[9px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] shrink-0 hidden lg:block">
+              → live TigerGraph traversal
             </span>
           </div>
 
           {/* Graph fills the rest */}
-          <div className="absolute top-7 left-0 right-0 bottom-0">
+          <div className="absolute top-[72px] left-0 right-0 bottom-0">
             <GraphCanvas />
             <GraphHud />
             <GraphLegend />
@@ -135,6 +175,11 @@ export function Manual() {
             {rightTab === 'cognitive' && (
               <div className="p-2">
                 <CognitivePanel />
+              </div>
+            )}
+            {rightTab === 'compare' && (
+              <div className="p-2">
+                <AdHocComparisonPanel />
               </div>
             )}
           </div>
@@ -234,6 +279,13 @@ function TabStrip({
         icon={Brain}
         label="cognitive · reasoning"
         kbd="3"
+      />
+      <TabButton
+        active={rightTab === 'compare'}
+        onClick={() => setRightTab('compare')}
+        icon={Scale}
+        label="compare · 3 pipelines"
+        kbd="4"
       />
     </div>
   );

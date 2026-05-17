@@ -337,6 +337,27 @@ export function GraphCanvas({
   const fullActive = useIntelStore((s) => s.active);
   const reduceMotion = useIntelStore((s) => s.reduceMotion);
   const graphCalmMode = useIntelStore((s) => s.graphCalmMode);
+
+  // Reveal pulse: when a new investigation snapshot lands (i.e. fullActive.id
+  // changes), emit a one-shot CSS pulse on the wrapper for ~1.4s.
+  // Causally bound to real backend completion (activateLiveSnapshot fires on
+  // report.finalized). Calm mode suppresses motion via the existing
+  // data-env-mode CSS.
+  const [revealPulse, setRevealPulse] = useState(false);
+  const lastActiveIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastActiveIdRef.current === null) {
+      lastActiveIdRef.current = fullActive.id;
+      return;
+    }
+    if (lastActiveIdRef.current !== fullActive.id) {
+      lastActiveIdRef.current = fullActive.id;
+      if (reduceMotion) return;
+      setRevealPulse(true);
+      const t = setTimeout(() => setRevealPulse(false), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [fullActive.id, reduceMotion]);
   // Subgraph projection: if neighborhood passed, restrict to those entities + their interconnecting edges.
   const active = useMemo<PresetSnapshot>(() => {
     if (!neighborhood || neighborhood.size === 0) return fullActive;
@@ -704,7 +725,7 @@ export function GraphCanvas({
   }, [events, cinematic, selectedEntityId, active.seed]);
 
   return (
-    <div className="fill overflow-hidden">
+    <div className={`fill overflow-hidden${revealPulse ? ' anim-graph-reveal' : ''}`}>
       <div className="fill tactical-grid-fine opacity-40" />
       <div
         ref={containerRef}

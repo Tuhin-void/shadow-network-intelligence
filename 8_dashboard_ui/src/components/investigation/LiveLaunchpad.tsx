@@ -26,7 +26,11 @@ export function LiveLaunchpad() {
     <section className="surface overflow-hidden mt-3">
       <div className="px-3 h-8 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
         <Radio className="w-3 h-3 text-[var(--color-emerald-400)] anim-drift" />
-        <span className="heading-tactical">Live orchestrator · curated investigations</span>
+        <span className="heading-tactical">Live investigations · TigerGraph-backed</span>
+        <span className="chip text-[8.5px] inline-flex items-center gap-1 border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.06)] text-[var(--color-emerald-400)]">
+          <span className="w-1 h-1 rounded-full bg-[var(--color-emerald-400)]" />
+          real graph · streaming
+        </span>
         <span className="chip chip-emerald ml-auto text-[8.5px]">
           {status.tigergraphOffline ? 'TG-OFF' : 'GRAPH LIVE'}
         </span>

@@ -36,6 +36,7 @@ class InvestigationEvent:
 # Event kinds — kept stable; UI contracts depend on these names.
 EVENT_SESSION_STARTED   = "session.started"
 EVENT_QUERY_RECEIVED    = "query.received"
+EVENT_INTENT_DETECTED   = "intent.detected"
 EVENT_PREWARM_DONE      = "prewarm.done"
 EVENT_ENTITY_FOUND      = "entity.found"
 EVENT_NEIGHBORHOOD_DONE = "neighborhood.expanded"

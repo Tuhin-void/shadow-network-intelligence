@@ -699,3 +699,71 @@ body, .veil, .veil-soft, .surface, .surface-strong {
 .text-shadow-deep {
   text-shadow: 0 0 28px rgba(34, 211, 238, 0.45), 0 2px 22px rgba(0, 0, 0, 0.5);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Investigation scan response                                                */
+/* Bound to `data-investigation-scan="active"` on <html>, set by              */
+/* WorkspaceShell whenever a real backend investigation is in flight.         */
+/* All effects are SUBTLE — the world becomes slightly more attentive,       */
+/* never carnival.                                                            */
+/* -------------------------------------------------------------------------- */
+
+@keyframes investigation-scan-sweep {
+  0%   { transform: translateY(-30%); opacity: 0; }
+  10%  { opacity: 0.55; }
+  60%  { opacity: 0.55; }
+  100% { transform: translateY(130%); opacity: 0; }
+}
+
+@keyframes investigation-grid-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.78; }
+}
+
+@keyframes graph-reveal-pulse {
+  0%   { box-shadow: inset 0 0 0 0 rgba(34, 211, 238, 0.0); opacity: 0.85; }
+  20%  { box-shadow: inset 0 0 90px 8px rgba(34, 211, 238, 0.22); opacity: 1; }
+  100% { box-shadow: inset 0 0 0 0 rgba(34, 211, 238, 0.0); opacity: 1; }
+}
+
+/* Soft horizontal scan-line sweep while scanning. Sits as a top-level
+ * fixed overlay because the scan attribute is on <html>. */
+:root[data-investigation-scan="active"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(34, 211, 238, 0.045) 45%,
+    rgba(34, 211, 238, 0.085) 50%,
+    rgba(34, 211, 238, 0.045) 55%,
+    transparent 100%
+  );
+  height: 18%;
+  animation: investigation-scan-sweep 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  mix-blend-mode: screen;
+}
+
+/* Grids breathe slightly faster + brighter while scanning. */
+:root[data-investigation-scan="active"] .tactical-grid,
+:root[data-investigation-scan="active"] .tactical-grid-fine {
+  animation: investigation-grid-breathe 3.6s ease-in-out infinite;
+}
+
+/* Calm mode suppresses the scan effects entirely. */
+:root[data-env-mode="calm"][data-investigation-scan="active"]::after {
+  display: none;
+}
+:root[data-env-mode="calm"][data-investigation-scan="active"] .tactical-grid,
+:root[data-env-mode="calm"][data-investigation-scan="active"] .tactical-grid-fine {
+  animation: none;
+}
+
+/* One-shot pulse applied to the graph canvas wrapper when a new live
+ * snapshot activates. JS adds the class for 1.4s then removes it. */
+.anim-graph-reveal {
+  animation: graph-reveal-pulse 1.4s cubic-bezier(0.16, 1, 0.3, 1) 1;
+}

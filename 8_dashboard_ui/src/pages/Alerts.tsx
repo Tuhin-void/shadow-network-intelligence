@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { cn, formatTime } from '@/lib/utils';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   AlertOctagon,
   CircleDot,
@@ -66,7 +67,8 @@ export function Alerts() {
 
   return (
     <div className="fill overflow-y-auto scroll-tactical">
-      <div className="px-6 pt-16 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
+      <SyntheticScenarioRibbon hint="alerts surfaced from preset corpus" />
+      <div className="px-6 pt-24 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
         {/* Header */}
         <div className="flex items-end justify-between mb-4">
           <div>

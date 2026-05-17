@@ -96,10 +96,17 @@ class EvaluationResult:
     query_id: str = ""
     approach: str = ""
     llm_judge_score: float = 0.0
+    # Full judge breakdown (1-5 each) so aggregates can compute
+    # per-dimension pass rates instead of only the overall.
+    judge_breakdown: dict = field(default_factory=dict)
     entity_match: Optional[EntityMatchResult] = None
     accuracy: float = 0.0
     hallucination_score: float = 0.0
     completeness_score: float = 0.0
+    # Semantic answer similarity (0..1). Method label discloses whether
+    # this is true BERTScore F1 or the embedding-cosine fallback.
+    semantic_score: float = 0.0
+    semantic_method: str = ""
     tokens_used: int = 0
     total_cost: float = 0.0
     failure_reasons: list[str] = field(default_factory=list)
@@ -123,6 +130,13 @@ class BenchmarkRun:
     queries_loaded: int = 0
     queries_run: int = 0
     results: dict[str, list[dict]] = field(default_factory=dict)
+    # Parallel to `results` — list of EvaluationResult.to_dict() per approach
+    # when a scorer was provided. Empty dict if scoring was skipped.
+    evaluations: dict[str, list[dict]] = field(default_factory=dict)
+    # The actual queries that were run (id + question + ground truth),
+    # so downstream consumers can render benchmark↔investigation links
+    # without having to re-derive the query set.
+    queries: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)

@@ -221,6 +221,53 @@ class GraphClient:
             if self.dataset and not self._offline_fallback._initialized:
                 self._offline_fallback.init_from_dataset(self.dataset)
             logger.warning("TigerGraph unreachable — switched to offline fallback mode")
+        # Track the most-recent reconnect attempt so callers of
+        # reconnect_if_offline() can rate-limit retries.
+        import time as _t
+        self._last_reconnect_attempt_at = _t.time()
+
+    def reconnect_if_offline(self, *, min_interval_s: float = 5.0) -> bool:
+        """
+        Self-healing reconnect path. If the client is currently in
+        offline-fallback mode, attempts a fresh TigerGraph connection
+        (subject to a minimum interval between retries to avoid
+        hammering the server). Returns True iff TG is reachable AFTER
+        the call.
+
+        This is the mechanism that lets a long-running orchestrator
+        recover automatically when the TG workspace is unpaused without
+        requiring a process restart.
+        """
+        import time as _t
+        if not self._offline_mode:
+            return True
+        # Respect cooldown — don't retry more often than once per
+        # min_interval_s. The probe itself can be slow (~3-10s) so the
+        # cooldown keeps load reasonable.
+        last = getattr(self, "_last_reconnect_attempt_at", 0.0)
+        if (_t.time() - last) < min_interval_s:
+            return False
+        self._last_reconnect_attempt_at = _t.time()
+
+        logger.info("attempting TigerGraph reconnect …")
+        # Drop the previous connection object so _init_pyTigerGraph
+        # builds a fresh one (token refresh is critical when the workspace
+        # has been paused — the prior token is invalid).
+        self._tg_conn = None
+        # Optimistically clear the offline flag so _init_pyTigerGraph
+        # can promote us out of offline if it succeeds.
+        self._offline_mode = False
+        try:
+            self._init_pyTigerGraph()
+        except Exception as e:
+            logger.warning(f"reconnect attempt failed: {type(e).__name__}: {e}")
+            self._enable_offline_mode()
+            return False
+        if self._offline_mode:
+            logger.info("reconnect attempt did not restore TG connectivity")
+            return False
+        logger.info("TigerGraph reconnect succeeded — back online")
+        return True
 
     def health_check(self) -> dict:
         """Comprehensive health check using pyTigerGraph."""

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { cn, entityGlyph, tierColor } from '@/lib/utils';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   ArrowLeft,
   CircleDot,
@@ -32,7 +33,11 @@ function DossierIndex() {
   const { presets } = useIntelStore();
   return (
     <div className="fill overflow-y-auto scroll-tactical">
-      <div className="px-6 pt-16 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
+      <SyntheticScenarioRibbon
+        hint="case dossiers · preset corpus"
+        whisper
+      />
+      <div className="px-6 pt-24 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
         <div className="flex items-end justify-between mb-4">
           <div>
             <div className="font-mono text-[10px] tracking-[0.4em] uppercase text-[var(--color-text-muted)]">

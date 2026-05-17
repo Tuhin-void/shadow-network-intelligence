@@ -72,7 +72,26 @@ export function CognitivePanel() {
       </div>
     );
   }
-  if (!report) return null;
+  if (!report) {
+    // Honest empty state — no live investigation has run yet. Do NOT
+    // fabricate a cognitive report from the active scenario preset.
+    return (
+      <div className="surface p-4 flex flex-col items-center text-center gap-2">
+        <Brain className="w-5 h-5 text-[var(--color-text-muted)] opacity-70" />
+        <div className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-text-muted)]">
+          cognitive layer · idle
+        </div>
+        <div className="text-[11.5px] text-[var(--color-text-secondary)] max-w-[360px] leading-relaxed">
+          No live investigation has been run yet. The cognitive layer
+          populates only from real backend retrieval — it never reuses
+          scenario corpus data.
+        </div>
+        <div className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] mt-1">
+          run a custom query above or click a live preset
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">

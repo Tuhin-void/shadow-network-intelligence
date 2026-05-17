@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   Beaker,
   CircleDot,
@@ -58,7 +59,11 @@ export function Simulate() {
 
   return (
     <div className="fill overflow-y-auto scroll-tactical">
-      <div className="absolute top-[56px] inset-x-0 z-10">
+      <SyntheticScenarioRibbon
+        label="simulation lab"
+        hint="adversarial scenarios · explanatory fixtures"
+      />
+      <div className="absolute top-[88px] inset-x-0 z-10">
         <PageHeader
           icon={Beaker}
           eyebrow="simulation lab"

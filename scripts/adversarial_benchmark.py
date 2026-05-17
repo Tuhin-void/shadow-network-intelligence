@@ -29,6 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "3_graph_intelligence_core"))
 
 QUERIES_PATH = Path(__file__).parent / "adversarial_queries.json"
 RESULTS_PATH = Path(__file__).parent / "adversarial_results.md"
+RESULTS_JSON = Path(__file__).parent / "adversarial_results.json"
 
 
 # Structural-edge labels worth counting in GraphRAG output. These are the
@@ -231,6 +232,56 @@ def _write_report(rows: list[dict], profile: str) -> None:
         out.append("```\n")
 
     RESULTS_PATH.write_text("\n".join(out))
+
+    # Additive: machine-readable JSON for the frontend BenchmarkShootout
+    # page to consume. Same data the markdown summarizes, no synthesis.
+    import time as _t
+    structured = {
+        "generated_at": _t.time(),
+        "profile": profile,
+        "query_count": len(rows),
+        "queries": [
+            {
+                "id":         row["q"]["id"],
+                "category":   row["q"]["category"],
+                "question":   row["q"]["question"],
+                "needs_capability":       row["q"].get("needs_capability", ""),
+                "vectorrag_failure_mode": row["q"].get("vectorrag_failure_mode", ""),
+                "graphrag":   {
+                    "entities":           row["graphrag"]["entities"],
+                    "neighbors":          row["graphrag"]["neighbors"],
+                    "evidence":           row["graphrag"]["evidence"],
+                    "structural_edges":   row["graphrag"]["structural_edges"],
+                    "ring_touch_sum":     row["graphrag"]["ring_touch_sum"],
+                    "edge_types":         row["graphrag"]["edge_types"],
+                    "latency_ms":         row["graphrag"]["ms"],
+                    "answer_preview":     row["graphrag"]["answer_preview"],
+                },
+                "vectorrag_proxy": {
+                    "structural_signal": 0,
+                    "keyword_doc_hits":  row["vectorrag"].get("keyword_doc_hits", 0),
+                    "limitation":        row["vectorrag"].get("limitation", ""),
+                },
+                "pure_llm": {
+                    "structural_signal": 0,
+                    "retrieval":         "none",
+                },
+            }
+            for row in rows
+        ],
+        "aggregate": {
+            "queries_with_structural_evidence": sum(
+                1 for r in rows if r["graphrag"]["structural_edges"] >= 1),
+            "total_neighbors_traversed": sum(r["graphrag"]["neighbors"] for r in rows),
+            "total_structural_edges":   sum(r["graphrag"]["structural_edges"] for r in rows),
+            "avg_latency_ms":           round(
+                sum(r["graphrag"]["ms"] for r in rows) / max(len(rows), 1), 1),
+            "vectorrag_structural_total": 0,
+            "pure_llm_structural_total":  0,
+        },
+    }
+    import json as _json
+    RESULTS_JSON.write_text(_json.dumps(structured, indent=2))
 
 
 if __name__ == "__main__":

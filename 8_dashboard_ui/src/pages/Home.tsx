@@ -20,6 +20,8 @@ import {
 import type { PresetSnapshot, RiskTier } from '@/types/intel';
 import { motion } from 'framer-motion';
 import { LiveLaunchpad } from '@/components/investigation/LiveLaunchpad';
+import { CustomInvestigationInput } from '@/components/investigation/CustomInvestigationInput';
+import { RecentInvestigationsPanel } from '@/components/investigation/RecentInvestigationsPanel';
 
 /**
  * Home / Command Center.
@@ -139,12 +141,31 @@ export function Home() {
         {/* Live orchestrator launchpad — silently hidden when backend offline */}
         <LiveLaunchpad />
 
+        {/* Custom investigation entrypoint — same real backend pipeline as
+            curated presets, but operator-authored query. */}
+        <div className="mt-3">
+          <CustomInvestigationInput variant="launchpad" />
+        </div>
+
+        {/* Disk-backed archive of every prior investigation. Click any row
+            to replay; warm cache returns the same surface in milliseconds. */}
+        <div className="mt-3">
+          <RecentInvestigationsPanel limit={12} />
+        </div>
+
         {/* Two columns: investigation queue + critical suspects */}
         <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-3 mt-5">
           <section className="surface overflow-hidden">
             <div className="px-3 h-8 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
-              <Activity className="w-3 h-3 text-[var(--color-ice-400)]" />
-              <span className="heading-tactical">Investigation queue</span>
+              <Activity className="w-3 h-3 text-[var(--color-amber-400)]" />
+              <span className="heading-tactical">Scenario queue</span>
+              {/* Honesty chip — these cases are pre-built explanatory
+                  scenarios, NOT live TigerGraph data. Live investigations
+                  live in the orchestrator-backed launchpad above. */}
+              <span className="chip text-[8.5px] inline-flex items-center gap-1 border-[rgba(245,158,11,0.35)] text-[var(--color-amber-400)]">
+                <span className="w-1 h-1 rounded-full bg-[var(--color-amber-400)]" />
+                synthetic scenarios
+              </span>
               <span className="chip ml-auto">{presets.length}</span>
             </div>
             <div className="divide-y divide-[var(--color-line-soft)]">

@@ -35,6 +35,10 @@ const SECTIONS: Array<{
 export function IntelligencePanel() {
   const { active, streamingPhase, progress } = useIntelStore();
   const report = active.report;
+  // A snapshot whose id starts with `live_` came from the orchestrator
+  // (built via buildSnapshotFromBackendReport). Anything else is the
+  // pre-built scenario corpus — we surface that honestly.
+  const isLive = active.id.startsWith('live_');
 
   // For "live" feel: reveal sections progressively when streaming.
   // Otherwise reveal all immediately.
@@ -44,6 +48,34 @@ export function IntelligencePanel() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Provenance strip — honest live vs scenario indicator. */}
+      <div className="px-3 h-6 flex items-center border-b border-[var(--color-line-soft)] gap-2">
+        <span
+          className="w-1 h-1 rounded-full"
+          style={{
+            background: isLive
+              ? 'var(--color-emerald-400)'
+              : 'var(--color-amber-400)',
+          }}
+        />
+        <span
+          className="font-mono text-[9px] tracking-[0.28em] uppercase"
+          style={{
+            color: isLive
+              ? 'var(--color-emerald-400)'
+              : 'var(--color-amber-400)',
+          }}
+        >
+          {isLive ? 'live investigation' : 'scenario · explanatory'}
+        </span>
+        <span className="text-[var(--color-text-ghost)]">·</span>
+        <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] truncate">
+          {isLive
+            ? 'tigergraph-backed retrieval'
+            : 'pre-built scenario · run a custom investigation for live evidence'}
+        </span>
+      </div>
+
       <NarrativeBlock report={report} />
       <div className="px-3 h-7 flex items-center border-b border-[var(--color-line-soft)] sticky top-0 z-10 bg-[var(--color-graphite-900)]">
         <span className="heading-tactical">Report · 9 sections</span>

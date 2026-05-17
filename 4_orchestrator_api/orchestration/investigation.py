@@ -32,7 +32,8 @@ if str(_CORE) not in sys.path:
 
 from .events import (
     InvestigationEvent,
-    EVENT_SESSION_STARTED, EVENT_QUERY_RECEIVED, EVENT_PREWARM_DONE,
+    EVENT_SESSION_STARTED, EVENT_QUERY_RECEIVED, EVENT_INTENT_DETECTED,
+    EVENT_PREWARM_DONE,
     EVENT_ENTITY_FOUND, EVENT_NEIGHBORHOOD_DONE, EVENT_RING_DISCOVERED,
     EVENT_HIDDEN_RELATION, EVENT_TRAVERSAL_PATH, EVENT_RING_MEMBER_PROMO,
     EVENT_EVIDENCE_COLLECTED, EVENT_REPORT_FINALIZED, EVENT_ERROR,
@@ -40,6 +41,8 @@ from .events import (
 from .session import SessionStore, InvestigationSession
 from .report import build_report
 from .result_cache import ResultCache
+from .intent import get_classifier
+from .archive import get_archive
 
 
 class InvestigationOrchestrator:
@@ -187,6 +190,13 @@ class InvestigationOrchestrator:
         })
         yield emit(EVENT_QUERY_RECEIVED, {"query": query, "top_k": top_k, "depth": depth})
 
+        # Intent classification — deterministic, pure-python, sub-ms. The
+        # intent label flows into the report so the UI can present a
+        # workflow chip and the archive can group by workflow.
+        intent = get_classifier().classify(query)
+        intent_dict = intent.to_dict()
+        yield emit(EVENT_INTENT_DETECTED, intent_dict)
+
         if self._prewarm_stats and self._prewarm_stats.get("warmed", 0) > 0:
             yield emit(EVENT_PREWARM_DONE, self._prewarm_stats)
 
@@ -275,9 +285,73 @@ class InvestigationOrchestrator:
             elapsed_ms=elapsed_ms,
         )
         report_dict = report.to_dict()
+        # Stamp the intent onto the report so downstream consumers (UI,
+        # archive, deep stream) see a single source of truth.
+        report_dict["intent"] = intent_dict
+        report_dict["metadata"] = {
+            **(report_dict.get("metadata") or {}),
+            "cache_hit": bool(cache_hit),
+            "intent_kind": intent.kind,
+        }
         self._sessions.record_report(session.id, report_dict)
+        # Archive the shallow investigation. Deep stream archives a
+        # richer version separately (with swarm + reasoning).
+        try:
+            get_archive().record_investigation({
+                "investigation_id": inv_id,
+                "session_id":       session.id,
+                "query":            query,
+                "intent":           intent_dict,
+                "top_k":            top_k,
+                "depth":            depth,
+                "strategy":         strategy,
+                "elapsed_ms":       elapsed_ms,
+                "offline_mode":     self._is_offline,
+                "cache_hit":        bool(cache_hit),
+                "environment":      self._snapshot_environment(),
+                "report":           report_dict,
+                "deep_report":      None,
+            })
+        except Exception:  # archive failures must never break the stream
+            pass
 
         yield emit(EVENT_REPORT_FINALIZED, report_dict)
+
+    # ── Environment snapshot ──────────────────────────────────────────────
+
+    def _snapshot_environment(self) -> dict:
+        """Capture what graph state was live at the moment this investigation
+        ran. Stored on the archive record so the UI can warn when a replay
+        is being run against a graph that has changed since.
+
+        Cheap — vertex counts come from the GraphClient's per-process cache
+        when warm; only the first call per process pays the round-trip.
+        Failures are non-fatal (returns a minimal snapshot)."""
+        try:
+            online = not bool(getattr(self._client, "_offline_mode", True))
+            counts: dict = {}
+            if online:
+                try:
+                    counts = self._client.get_vertex_counts() or {}
+                except Exception:
+                    counts = {}
+            total = sum(v for v in counts.values() if isinstance(v, int))
+            kind = "empty" if total == 0 else "live"
+            return {
+                "tigergraph_online": online,
+                "vertex_counts":     counts,
+                "total_vertices":    total,
+                "environment_kind":  kind,
+                "captured_at":       time.time(),
+            }
+        except Exception:
+            return {
+                "tigergraph_online": False,
+                "vertex_counts":     {},
+                "total_vertices":    0,
+                "environment_kind":  "unknown",
+                "captured_at":       time.time(),
+            }
 
     # ── Status / introspection ────────────────────────────────────────────
 

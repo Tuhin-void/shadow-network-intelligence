@@ -124,8 +124,9 @@ FraudRing membership edges use per-type explicit edges (not polymorphic):
 
 | Profile | Persons | Companies | Accounts | Use |
 |---------|---------|-----------|---------|-----|
-| `small` | 6,000 | 5,000 | 10,000 | dev/CI |
-| `hackathon_default` | larger | larger | larger | demo |
+| `small` | 6,000 | 5,000 | 10,000 | dev/CI, adversarial benchmark default |
+| `hackathon_default` | 6,000 | 5,000 | 10,000 | demo |
+| `benchmark_dense` | 12,000 | 8,000 | 20,000 | 1.2M–2.4M token corpus, adversarial-grade |
 
 ## Key Constraints
 

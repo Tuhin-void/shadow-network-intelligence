@@ -42,13 +42,13 @@ Profile: `small` · Queries: 20
 - entities: 5, neighbors: 160, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 4, avg propagated risk: 0.0
 - edge types surfaced: SENT_TRANSACTION
-- latency: 7957.5 ms
+- latency: 7936.4 ms
 ```
 SUSPECTS:
   • FraudRing layering_chain ring FR-001 (FR-001) — risk 0.00
   • Account A-006696 (A-006696) — risk 0.00 [in 1 ring(s)]
   • Account A-004548 (A-004548) — risk 0.00 [in 1 ring(s)]
-  • Account A-007570 (A-007570) — risk 0.00 [in 1 ring(s)]
+  • Account A-004601 (A-004601) — risk 0.00 [in 1 ring(s)]
 RING CONNECTIONS:
   • FraudRing FR-001 — ACCOUNT_MEMBER_OF_RING
   • FraudRing FR-001 — TRANSACTION_MEMBER_OF_RING
@@ -68,7 +68,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 187, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, PERSON_MEMBER_OF_RING
-- latency: 15639.0 ms
+- latency: 15457.1 ms
 ```
 SUSPECTS:
   • FraudRing circular_ownership ring FR-014 (FR-014) — risk 0.00
@@ -94,7 +94,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 145, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 22237.3 ms
+- latency: 21653.7 ms
 ```
 SUSPECTS:
   • Person John Petrov (P-004984) — risk 0.00 [4 fraud-edges]
@@ -122,7 +122,7 @@ SHARED INFRAS
 - entities: 5, neighbors: 244, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 15437.7 ms
+- latency: 16843.4 ms
 ```
 SUSPECTS:
   • Person Mary Petrov (P-004786) — risk 0.00 [4 fraud-edges]
@@ -151,7 +151,7 @@ SHARED INFRASTRUCTURE:
 - entities: 5, neighbors: 265, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, PERSON_MEMBER_OF_RING
-- latency: 18404.7 ms
+- latency: 19454.3 ms
 ```
 SUSPECTS:
   • Company Titan Investments (C-004921) — risk 0.00
@@ -178,7 +178,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 244, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 1669.4 ms
+- latency: 1655.8 ms
 ```
 SUSPECTS:
   • Person Mary Petrov (P-004786) — risk 0.00 [4 fraud-edges]
@@ -207,7 +207,7 @@ SHARED INFRASTRUCTURE:
 - entities: 5, neighbors: 409, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, PERSON_MEMBER_OF_RING
-- latency: 15039.8 ms
+- latency: 15439.5 ms
 ```
 SUSPECTS:
   • FraudRing circular_ownership ring FR-014 (FR-014) — risk 0.00
@@ -233,7 +233,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 86, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: SENT_TRANSACTION
-- latency: 6651.2 ms
+- latency: 6762.2 ms
 ```
 SUSPECTS:
   • Company Titan Investments (C-004921) — risk 0.00
@@ -259,7 +259,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 160, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 4, avg propagated risk: 0.0
 - edge types surfaced: SENT_TRANSACTION
-- latency: 8093.7 ms
+- latency: 8389.9 ms
 ```
 SUSPECTS:
   • FraudRing layering_chain ring FR-001 (FR-001) — risk 0.00
@@ -285,7 +285,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 207, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 20091.2 ms
+- latency: 22627.6 ms
 ```
 SUSPECTS:
   • Person Mary Petrov (P-004786) — risk 0.00 [4 fraud-edges]
@@ -314,7 +314,7 @@ SHARED INFRASTRUCTURE:
 - entities: 5, neighbors: 49, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: SENT_TRANSACTION
-- latency: 9290.9 ms
+- latency: 9519.3 ms
 ```
 SUSPECTS:
   • FraudRing Offshore Routing 0 (FR-OFFSHORE-00) — risk 0.00
@@ -342,7 +342,7 @@ SHARED INFRASTRUCTURE:
 - entities: 1, neighbors: 33, evidence: 4, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, SENT_TRANSACTION
-- latency: 13935.8 ms
+- latency: 14439.1 ms
 ```
 SUSPECTS:
   • Person Raj Al-Hassan (P-000001) — risk 0.00
@@ -373,7 +373,7 @@ SIGNALS:
 - entities: 5, neighbors: 145, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 41247.9 ms
+- latency: 44486.2 ms
 ```
 SUSPECTS:
   • Person John Petrov (P-004984) — risk 0.00 [4 fraud-edges]
@@ -401,7 +401,7 @@ SHARED INFRAS
 - entities: 5, neighbors: 404, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, SENT_TRANSACTION
-- latency: 17409.4 ms
+- latency: 16446.1 ms
 ```
 SUSPECTS:
   • Person Viktor Jones (P-004777) — risk 0.00
@@ -427,7 +427,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 298, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: SENT_TRANSACTION
-- latency: 11774.0 ms
+- latency: 11045.4 ms
 ```
 SUSPECTS:
   • Person Viktor Jones (P-004777) — risk 0.00
@@ -454,7 +454,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 62, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 4, avg propagated risk: 0.0
 - edge types surfaced: OWNS
-- latency: 35827.7 ms
+- latency: 36349.1 ms
 ```
 SUSPECTS:
   • FraudRing circular_ownership ring FR-002 (FR-002) — risk 0.00
@@ -480,7 +480,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 160, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, SENT_TRANSACTION
-- latency: 16898.7 ms
+- latency: 15964.9 ms
 ```
 SUSPECTS:
   • Person Viktor Jones (P-004777) — risk 0.00
@@ -507,7 +507,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 307, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, SENT_TRANSACTION
-- latency: 16271.3 ms
+- latency: 17211.2 ms
 ```
 SUSPECTS:
   • Person Viktor Jones (P-004777) — risk 0.00
@@ -533,7 +533,7 @@ RING CONNECTIONS:
 - entities: 5, neighbors: 407, evidence: 5, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, PERSON_MEMBER_OF_RING
-- latency: 10133.4 ms
+- latency: 9818.4 ms
 ```
 SUSPECTS:
   • FraudRing circular_ownership ring FR-014 (FR-014) — risk 0.00
@@ -559,7 +559,7 @@ RING CONNECTIONS:
 - entities: 1, neighbors: 33, evidence: 4, structural-edges in evidence: 3
 - ring touch sum: 0, avg propagated risk: 0.0
 - edge types surfaced: OWNS, SENT_TRANSACTION
-- latency: 14849.0 ms
+- latency: 14226.9 ms
 ```
 SUSPECTS:
   • Person Raj Al-Hassan (P-000001) — risk 0.00

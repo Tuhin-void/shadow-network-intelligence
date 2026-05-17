@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { cn, entityGlyph, tierColor } from '@/lib/utils';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   CircleDot,
   Eye,
@@ -64,6 +65,7 @@ export function Rings() {
 
   return (
     <div className="fill overflow-hidden">
+      <SyntheticScenarioRibbon hint="ring analysis · preset corpus" />
       {/* Workspace micro-tabs strip + slim contextual rail */}
       <WorkspaceTabs />
       <TacticalRail defaultTab="rings" />

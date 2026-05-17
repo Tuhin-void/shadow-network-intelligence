@@ -109,6 +109,10 @@ export function Autopilot() {
               autopilot
             </span>
           </div>
+          <span className="chip text-[8.5px] inline-flex items-center gap-1 border-[rgba(245,158,11,0.28)] text-[var(--color-amber-400)]">
+            <span className="w-1 h-1 rounded-full bg-[var(--color-amber-400)]" />
+            synthetic walkthrough
+          </span>
         </div>
 
         {/* Centered headline so user always knows WHAT case + WHAT the conclusion is */}

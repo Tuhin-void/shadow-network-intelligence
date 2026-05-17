@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional
+from typing import Callable, Optional
 from ..shared.schemas import BenchmarkRun, PipelineResult
 from ..shared.data_loader import AdaptiveDataLoader
 from ..shared.embedder import Embedder
@@ -19,6 +19,7 @@ from ..retrieval import VectorStore, RetrievalCache
 from .query_loader import QueryLoader
 from .difficulty_tiers import DifficultyTierClassifier
 from ..pipelines import PureLLMPipeline, VectorRAGPipeline, GraphRAGPipeline
+from ..evaluation import BenchmarkScorer
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,24 @@ class BenchmarkRunner:
         parallel: bool = True,
         max_workers: int = 3,
         limit: int = 0,
+        scorer: Optional[BenchmarkScorer] = None,
+        on_event: Optional[Callable[[dict], None]] = None,
     ) -> BenchmarkRun:
+        """Execute the benchmark.
+
+        Args:
+            scorer: optional BenchmarkScorer. If provided, every PipelineResult
+                is fed to it and the resulting EvaluationResult is persisted
+                into `BenchmarkRun.evaluations[approach]`. If None, the
+                evaluations dict is empty.
+            on_event: optional callback called with operational events:
+                {"kind": "run.started",   ...}
+                {"kind": "query.completed", "approach": str, "query_id": str,
+                 "index": int, "total": int, "result": dict,
+                 "evaluation": dict|None}
+                {"kind": "run.completed", "elapsed_ms": float, "run_id": str}
+                Designed for SSE wrappers — never raises into the runner.
+        """
         flat_approaches = []
         for a in (approaches or ["pure_llm", "vector_rag", "graph_rag"]):
             if "," in a:
@@ -140,10 +158,25 @@ class BenchmarkRunner:
 
         queries_to_run = queries[:limit] if limit > 0 else queries
         logger.info(f"Running benchmark: run_id={run_id}, queries={len(queries_to_run)}, "
-                    f"approaches={approaches}, parallel={parallel}")
+                    f"approaches={approaches}, parallel={parallel}, "
+                    f"scoring={scorer is not None}")
+
+        self._safe_emit(on_event, {
+            "kind": "run.started",
+            "run_id": run_id,
+            "profile": self.profile,
+            "queries": len(queries_to_run),
+            "approaches": approaches,
+            "scoring": scorer is not None,
+        })
 
         results_by_approach: dict = {a: [] for a in approaches}
+        evals_by_approach: dict = {a: [] for a in approaches}
         total_start = time.time()
+
+        # Index queries by id so we can look them up when scoring inside the
+        # parallel branch without mutating shared state from worker threads.
+        queries_by_id = {q.id: q for q in queries_to_run}
 
         for i, query in enumerate(queries_to_run):
             logger.info(f"[{i+1}/{len(queries_to_run)}] Query: {query.id} (tier {query.tier})")
@@ -159,10 +192,29 @@ class BenchmarkRunner:
                         approach, q = futures[fut]
                         try:
                             result = fut.result()
-                            result.query_id = query.id
+                            result.query_id = q.id
                             results_by_approach[approach].append(result)
+                            eval_dict = self._maybe_score(
+                                scorer, result, q, evals_by_approach[approach],
+                            )
+                            self._safe_emit(on_event, {
+                                "kind": "query.completed",
+                                "approach": approach,
+                                "query_id": q.id,
+                                "question": q.question,
+                                "index": i + 1,
+                                "total": len(queries_to_run),
+                                "result": result.to_dict(),
+                                "evaluation": eval_dict,
+                            })
                         except Exception as e:
-                            logger.error(f"{approach} error on {query.id}: {e}")
+                            logger.error(f"{approach} error on {q.id}: {e}")
+                            self._safe_emit(on_event, {
+                                "kind": "query.failed",
+                                "approach": approach,
+                                "query_id": q.id,
+                                "error": str(e),
+                            })
             else:
                 for approach in approaches:
                     if approach not in pipelines:
@@ -171,8 +223,27 @@ class BenchmarkRunner:
                         result = pipelines[approach].answer(query.question)
                         result.query_id = query.id
                         results_by_approach[approach].append(result)
+                        eval_dict = self._maybe_score(
+                            scorer, result, query, evals_by_approach[approach],
+                        )
+                        self._safe_emit(on_event, {
+                            "kind": "query.completed",
+                            "approach": approach,
+                            "query_id": query.id,
+                            "question": query.question,
+                            "index": i + 1,
+                            "total": len(queries_to_run),
+                            "result": result.to_dict(),
+                            "evaluation": eval_dict,
+                        })
                     except Exception as e:
                         logger.error(f"{approach} error on {query.id}: {e}")
+                        self._safe_emit(on_event, {
+                            "kind": "query.failed",
+                            "approach": approach,
+                            "query_id": query.id,
+                            "error": str(e),
+                        })
 
         total_time = (time.time() - total_start) * 1000
 
@@ -188,6 +259,19 @@ class BenchmarkRunner:
                 a: [r.to_dict() for r in results]
                 for a, results in results_by_approach.items()
             },
+            evaluations=evals_by_approach if scorer is not None else {},
+            queries=[
+                {
+                    "id": q.id,
+                    "question": q.question,
+                    "query_type": q.query_type,
+                    "tier": q.tier,
+                    "required_hops": q.required_hops,
+                    "fraud_ring_id": q.fraud_ring_id,
+                    "ground_truth_entities": q.ground_truth_entities,
+                }
+                for q in queries_to_run
+            ],
         )
 
         output_file = out_dir / f"benchmark_{run_id}.json"
@@ -197,7 +281,42 @@ class BenchmarkRunner:
 
         self._print_summary(results_by_approach, total_time)
 
+        self._safe_emit(on_event, {
+            "kind": "run.completed",
+            "run_id": run_id,
+            "elapsed_ms": round(total_time, 1),
+            "output_file": str(output_file),
+        })
+
         return benchmark_run
+
+    def _maybe_score(
+        self,
+        scorer: Optional[BenchmarkScorer],
+        result: PipelineResult,
+        query,
+        sink: list,
+    ) -> Optional[dict]:
+        """Score result against query; append to sink; return dict (or None)."""
+        if scorer is None:
+            return None
+        try:
+            ev = scorer.evaluate(result, query)
+            d = ev.to_dict()
+            sink.append(d)
+            return d
+        except Exception as e:
+            logger.error("scoring failed for %s/%s: %s", result.approach, query.id, e)
+            return None
+
+    @staticmethod
+    def _safe_emit(cb: Optional[Callable[[dict], None]], event: dict) -> None:
+        if cb is None:
+            return
+        try:
+            cb(event)
+        except Exception as e:
+            logger.warning("on_event callback raised: %s (event=%s)", e, event.get("kind"))
 
     def run_cli(
         self,

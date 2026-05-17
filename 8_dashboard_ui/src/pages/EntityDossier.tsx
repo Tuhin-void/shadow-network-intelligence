@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useIntelStore, getEntityById } from '@/store/intel-store';
 import { cn, entityGlyph, tierColor } from '@/lib/utils';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   ArrowLeft,
   CircleDot,
@@ -151,7 +152,8 @@ export function EntityDossier() {
 
   return (
     <div className="fill overflow-y-auto scroll-tactical">
-      <div className="px-6 pt-16 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
+      <SyntheticScenarioRibbon hint="entity dossier · preset corpus" />
+      <div className="px-6 pt-24 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.28em] uppercase text-[var(--color-text-muted)] mb-4">
           <button

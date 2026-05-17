@@ -6,6 +6,8 @@ import {
   BookOpen,
   Brain,
   Crosshair,
+  Database,
+  FileText,
   Info,
   Layers,
   Network,
@@ -18,9 +20,12 @@ import {
 import { useIntelStore } from '@/store/intel-store';
 import { Atmosphere } from '@/components/shared/Atmosphere';
 import { BenchmarkLane } from '@/components/benchmark/BenchmarkLane';
+import { RealBenchmarkPanel } from '@/components/benchmark/RealBenchmarkPanel';
 import { Panel } from '@/components/shared/Panel';
 import { cn } from '@/lib/utils';
 import type { BenchmarkMethod } from '@/types/intel';
+
+type BenchTab = 'live' | 'scenario';
 
 const METHODS: BenchmarkMethod[] = ['pure_llm', 'vector_rag', 'graph_rag'];
 
@@ -38,6 +43,9 @@ export function BenchmarkShootout() {
   const { active, presets, activePresetId, selectPreset } = useIntelStore();
 
   const [phase, setPhase] = useState<Phase>(1);
+  // Default landing tab: REAL benchmark evidence (from scripts/adversarial_results.json).
+  // Judges see actual TigerGraph-backed numbers FIRST.
+  const [tab, setTab] = useState<BenchTab>('live');
 
   // Auto-run the showdown when preset changes
   useEffect(() => {
@@ -69,15 +77,51 @@ export function BenchmarkShootout() {
           <ArrowLeft className="w-3 h-3" />
           mode select
         </button>
-        <div className="flex items-center gap-3">
-          <Trophy className="w-3.5 h-3.5 text-[var(--color-amber-400)]" />
-          <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-amber-300)]">
-            benchmark shootout
+
+        {/* Tab strip: Evidence (real adversarial benchmark JSON) /
+            Scenario (synthetic preset walkthrough). Default = Evidence. */}
+        <div className="flex items-center gap-1 panel-soft p-0.5">
+          <button
+            onClick={() => setTab('live')}
+            className={cn(
+              'h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.26em] uppercase rounded-sm transition-colors',
+              tab === 'live'
+                ? 'bg-[rgba(255,255,255,0.05)] text-[var(--color-text-bright)]'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]',
+            )}
+            title="Real adversarial benchmark output (scripts/adversarial_results.json)"
+          >
+            <Database className="w-3 h-3" />
+            evidence
+          </button>
+          <button
+            onClick={() => setTab('scenario')}
+            className={cn(
+              'h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.26em] uppercase rounded-sm transition-colors',
+              tab === 'scenario'
+                ? 'bg-[rgba(255,255,255,0.05)] text-[var(--color-text-bright)]'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]',
+            )}
+            title="Synthetic preset-based walkthrough — explanatory visualization, not measured data"
+          >
+            <FileText className="w-3 h-3" />
+            scenario
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-emerald-400)] anim-drift" />
+          <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-text-muted)]">
+            benchmark · {tab === 'live' ? 'evidence chamber' : 'scenario walkthrough'}
           </span>
-          <span className="text-[var(--color-text-ghost)]">·</span>
-          <span className="font-mono text-[10px] tracking-[0.28em] uppercase text-[var(--color-text-secondary)]">
-            {active.label}
-          </span>
+          {tab === 'scenario' && (
+            <>
+              <span className="text-[var(--color-text-ghost)]">·</span>
+              <span className="font-mono text-[10px] tracking-[0.28em] uppercase text-[var(--color-text-secondary)]">
+                {active.label}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -88,17 +132,28 @@ export function BenchmarkShootout() {
             <BookOpen className="w-3 h-3" />
             methodology
           </button>
-          <button
-            onClick={replay}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.26em] uppercase rounded-sm border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.05)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.1)]"
-          >
-            <RotateCcw className="w-3 h-3" />
-            replay
-          </button>
+          {tab === 'scenario' && (
+            <button
+              onClick={replay}
+              className="h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.26em] uppercase rounded-sm border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.05)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.1)]"
+            >
+              <RotateCcw className="w-3 h-3" />
+              replay
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Body */}
+      {/* Evidence tab — real adversarial benchmark JSON, projected
+          straight from scripts/adversarial_results.json. */}
+      {tab === 'live' && (
+        <div className="absolute top-12 inset-x-0 bottom-0 overflow-y-auto scroll-tactical px-6 py-5">
+          <RealBenchmarkPanel />
+        </div>
+      )}
+
+      {/* SCENARIO WALKTHROUGH TAB — synthetic preset-based explanation */}
+      {tab === 'scenario' && (
       <div
         className="absolute top-12 inset-x-0 bottom-0 grid gap-3 p-3"
         style={{
@@ -224,9 +279,23 @@ export function BenchmarkShootout() {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Synthetic banner shown only inside the scenario walkthrough.
+          Restrained — labels the surface honestly without shouting. */}
+      {tab === 'scenario' && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="mt-1 px-2.5 py-1 inline-flex items-center gap-1.5 rounded-b-sm border border-t-0 border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.04)]">
+            <span className="w-1 h-1 rounded-full bg-[var(--color-amber-400)]" />
+            <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-amber-400)]">
+              synthetic scenario · explanatory walkthrough
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Winner stamp */}
-      <AnimatePresence>{phase >= 4 && <WinnerStamp />}</AnimatePresence>
+      <AnimatePresence>{phase >= 4 && tab === 'scenario' && <WinnerStamp />}</AnimatePresence>
     </div>
   );
 }

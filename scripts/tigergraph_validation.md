@@ -1,6 +1,6 @@
 # TigerGraph operational validation
 
-**Status:** `HEALTHY`  •  **Elapsed:** 5.84s
+**Status:** `HEALTHY`  •  **Elapsed:** 6.36s
 
 - Host: `https://tg-6937a943-57ef-4bc3-88b0-3bce0d9a3290.tg-2635877100.i.tgcloud.io`
 - Offline mode: `False`

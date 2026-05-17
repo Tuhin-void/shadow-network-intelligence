@@ -1,874 +1,780 @@
-import { useMemo, useState } from 'react';
-import { useIntelStore } from '@/store/intel-store';
-import { cn, formatTime } from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity,
-  AlertOctagon,
-  Boxes,
+  AlertTriangle,
   CheckCircle2,
-  Cpu,
   Database,
-  FileJson,
   FileText,
-  GitBranch,
-  HardDrive,
-  Network,
-  Pause,
-  Play,
-  Plus,
+  Layers,
+  Loader2,
   RefreshCw,
-  ShieldCheck,
   Sparkles,
-  Webhook,
-  Workflow,
-  X,
+  Trash2,
+  Upload,
+  UploadCloud,
+  Zap,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
-  AVAILABLE_KINDS,
-  CATEGORY_LABEL,
-  KIND_LABEL,
-  KIND_TO_CATEGORY,
-} from '@/lib/sources-mock';
-import type {
-  DataSource,
-  IngestionRun,
-  SourceCategory,
-  SourceHealth,
-  SourceKind,
-} from '@/types/sources';
-import { SchemaMappingView } from '@/components/sources/SchemaMappingView';
-import { AnimatePresence, motion } from 'framer-motion';
+  api,
+  type BackendEnvironmentState,
+  type BackendIngestSchema,
+  type BackendSampleIngestResult,
+  type BackendUploadManifest,
+} from '@/lib/api-client';
+import { useIntelStore } from '@/store/intel-store';
+import { cn } from '@/lib/utils';
+import { OperationalConnectorPanel } from '@/components/sources/OperationalConnectorPanel';
+import { EnvironmentReadinessStrip } from '@/components/sources/EnvironmentReadinessStrip';
+import { SourceHandoffStrip } from '@/components/sources/SourceHandoffStrip';
 
-type Tab = 'overview' | 'schema' | 'ingestion';
-
-const CATEGORY_ICON: Record<SourceCategory, typeof Database> = {
-  database: Database,
-  file: FileText,
-  streaming: Webhook,
-  cloud_storage: HardDrive,
-  api: Network,
-};
-
-const HEALTH_COLOR: Record<SourceHealth, string> = {
-  healthy: 'var(--color-emerald-400)',
-  degraded: 'var(--color-amber-400)',
-  failing: 'var(--color-rose-400)',
-  idle: 'var(--color-text-faint)',
-};
-
+/**
+ * DataSources — "Choose Intelligence Environment" landing.
+ *
+ * Three operational paths:
+ *   1. Launch Sample Fraud Ecosystem  → POST /api/v1/ingest/sample
+ *   2. Upload Custom Dataset           → POST /api/v1/ingest/upload + /promote
+ *   3. Connect External Source         → honest connector gallery
+ *
+ * Every numeric value on this page is read from one of:
+ *   • /api/v1/ingest/environment (live TG state)
+ *   • /api/v1/ingest/list (real uploads)
+ *   • /api/v1/ingest/sample response
+ *
+ * No mock counters, no fake progress bars.
+ */
 export function DataSources() {
-  const {
-    dataSources,
-    ingestionRuns,
-    schemaMappings,
-    focusedSourceId,
-    focusSource,
-    setSourceStatus,
-    triggerIngestionRun,
-  } = useIntelStore();
+  const backendStatus = useIntelStore((s) => s.backendStatus);
 
-  const [tab, setTab] = useState<Tab>('overview');
-  const [showCatalog, setShowCatalog] = useState(false);
+  const [env, setEnv] = useState<BackendEnvironmentState | null>(null);
+  const [uploads, setUploads] = useState<BackendUploadManifest[]>([]);
+  const [schema, setSchema] = useState<BackendIngestSchema | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const focused = useMemo(
-    () => dataSources.find((s) => s.id === focusedSourceId) ?? dataSources[0],
-    [dataSources, focusedSourceId]
-  );
+  const [sampleRunning, setSampleRunning] = useState(false);
+  const [sampleResult, setSampleResult] = useState<BackendSampleIngestResult | null>(null);
 
-  // Aggregate stats
-  const stats = useMemo(() => {
-    const totalEntities = dataSources.reduce((a, s) => a + s.entitiesProduced, 0);
-    const totalEdges = dataSources.reduce((a, s) => a + s.edgesProduced, 0);
-    const totalRows = dataSources.reduce((a, s) => a + s.rowsIngested, 0);
-    const active = dataSources.filter((s) => s.status === 'connected' || s.status === 'syncing').length;
-    const failing = dataSources.filter((s) => s.health === 'failing' || s.health === 'degraded').length;
-    return { active, total: dataSources.length, totalRows, totalEntities, totalEdges, failing };
-  }, [dataSources]);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [latestPromotion, setLatestPromotion] = useState<{
+    inserted: number;
+    skipped: number;
+    elapsedS: number;
+    vertexCounts: Record<string, number> | null;
+  } | null>(null);
 
-  // Sources grouped by category
-  const grouped = useMemo(() => {
-    const groups: Record<SourceCategory, DataSource[]> = {
-      database: [],
-      file: [],
-      streaming: [],
-      cloud_storage: [],
-      api: [],
-    };
-    dataSources.forEach((s) => groups[s.category].push(s));
-    return groups;
-  }, [dataSources]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
-  const runsForSource = useMemo(
-    () => ingestionRuns.filter((r) => r.sourceId === focused?.id).slice(0, 20),
-    [ingestionRuns, focused?.id]
-  );
+  const isOffline = !backendStatus;
+  const tgOffline = backendStatus?.tigergraphOffline ?? false;
+
+  // Refresh accepts a `probe` flag — manual refresh always asks for a
+  // fresh TG round-trip (so the user gets the truth, not a cached flag),
+  // while the auto-poll path uses the cheap cached read.
+  const refresh = useCallback(async (opts: { probe?: boolean } = {}) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const [e, list, sch] = await Promise.all([
+        api.ingestEnvironment({ probe: opts.probe }).catch(() => null),
+        api.ingestList().catch(() => ({ uploads: [] })),
+        api.ingestSchema().catch(() => null),
+      ]);
+      setEnv(e);
+      setUploads(list.uploads);
+      setSchema(sch);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Auto-poll every 15s so the Sources page reflects ingestion / promotion
+  // activity from elsewhere (e.g. CLI) without manual reload.
+  useEffect(() => {
+    const id = setInterval(() => { void refresh(); }, 15_000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  // When the orchestrator-status poll flips TG offline, immediately
+  // invalidate the env so we don't keep showing stale `online` counts.
+  useEffect(() => {
+    if (tgOffline || isOffline) {
+      setEnv((prev) =>
+        prev
+          ? {
+              ...prev,
+              tigergraph_online: false,
+              investigation_ready: false,
+              readiness: prev.readiness && {
+                ...prev.readiness,
+                graph:     { ready: false, reason: 'tigergraph unreachable · investigations blocked' },
+                topology:  { ready: false, reason: 'tigergraph offline' },
+                retrieval: { ready: false, reason: 'retrieval requires a hydrated graph' },
+                benchmark: { ready: false, reason: 'benchmark requires a hydrated graph' },
+                reasoning: { ready: false, reason: 'reasoning requires retrieval' },
+              },
+            }
+          : prev,
+      );
+    }
+    // Trigger a probe refresh ONCE when we transition from offline → online,
+    // so the page picks up the recovery without waiting for the next poll tick.
+    // Empty dependency on env to avoid loops; we only need the flip detection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tgOffline, isOffline]);
+
+  const launchSample = async () => {
+    setSampleRunning(true);
+    setErr(null);
+    try {
+      const r = await api.ingestSample('small');
+      setSampleResult(r);
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSampleRunning(false);
+    }
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const f = files[0];
+    setBusy(true);
+    setErr(null);
+    try {
+      const m = await api.ingestUpload(f);
+      setUploads((prev) => [m, ...prev]);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const promote = async (id: string) => {
+    setPromotingId(id);
+    setErr(null);
+    try {
+      const r = await api.ingestPromote(id);
+      setLatestPromotion({
+        inserted: r.records,
+        skipped: r.skipped,
+        elapsedS: r.elapsed_s,
+        vertexCounts: r.vertex_counts,
+      });
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPromotingId(null);
+    }
+  };
+
+  const remove = async (id: string) => {
+    try {
+      await api.ingestDelete(id);
+      setUploads((prev) => prev.filter((u) => u.upload_id !== id));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
-    <div className="fill overflow-hidden">
-      <div className="absolute top-[56px] inset-x-0 z-10">
-        <PageHeader
-          icon={Workflow}
-          eyebrow="data sources"
-          title="Intelligence ingestion"
-          meta={`${stats.active} of ${stats.total} connected · ${stats.totalEntities.toLocaleString()} entities · ${stats.totalEdges.toLocaleString()} edges`}
-          action={
-            <button
-              onClick={() => setShowCatalog(true)}
-              className="h-7 px-2.5 inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.26em] uppercase rounded-sm border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.06)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.1)]"
-            >
-              <Plus className="w-3 h-3" />
-              connect source
-            </button>
-          }
-        />
-      </div>
-
-      {/* Top stat strip */}
-      <div className="absolute top-[100px] inset-x-0 px-3 z-10">
-        <div className="grid grid-cols-6 gap-2">
-          <Stat label="active sources" value={`${stats.active}/${stats.total}`} icon={CheckCircle2} tone="emerald" />
-          <Stat label="rows ingested" value={formatBig(stats.totalRows)} icon={Activity} tone="ice" />
-          <Stat label="entities" value={formatBig(stats.totalEntities)} icon={Boxes} tone="ice" />
-          <Stat label="edges" value={formatBig(stats.totalEdges)} icon={GitBranch} tone="amber" />
-          <Stat
-            label="degraded / failing"
-            value={String(stats.failing)}
-            icon={AlertOctagon}
-            tone={stats.failing > 0 ? 'rose' : 'emerald'}
-          />
-          <Stat label="topology coverage" value="94%" icon={ShieldCheck} tone="emerald" />
-        </div>
-      </div>
-
-      {/* Body grid */}
-      <div
-        className="absolute inset-x-0 bottom-0 px-3 pb-3 pt-3"
-        style={{
-          top: 188,
-          display: 'grid',
-          gridTemplateColumns: '300px minmax(0, 1fr) 320px',
-          gap: 8,
-        }}
-      >
-        {/* LEFT — source rail grouped by category */}
-        <div className="surface overflow-hidden flex flex-col min-h-0">
-          <div className="px-3 h-8 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
-            <span className="heading-tactical">Sources</span>
-            <span className="chip ml-auto text-[9px]">{stats.total}</span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto scroll-tactical">
-            {(Object.keys(grouped) as SourceCategory[]).map((cat) => {
-              const items = grouped[cat];
-              if (items.length === 0) return null;
-              const Icon = CATEGORY_ICON[cat];
-              return (
-                <div key={cat}>
-                  <div className="px-3 h-7 flex items-center gap-2 bg-[rgba(255,255,255,0.012)] border-b border-[var(--color-line-soft)] sticky top-0 z-[1]">
-                    <Icon className="w-3 h-3 text-[var(--color-text-muted)]" />
-                    <span className="font-mono text-[9px] tracking-[0.26em] uppercase text-[var(--color-text-muted)]">
-                      {CATEGORY_LABEL[cat]}
-                    </span>
-                    <span className="chip ml-auto text-[8.5px]">{items.length}</span>
-                  </div>
-                  {items.map((s) => (
-                    <SourceRow
-                      key={s.id}
-                      source={s}
-                      active={s.id === focused?.id}
-                      onClick={() => focusSource(s.id)}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* CENTER — focused source detail */}
-        <div className="surface overflow-hidden flex flex-col min-h-0">
-          {focused ? (
-            <>
-              <FocusedHeader
-                source={focused}
-                tab={tab}
-                setTab={setTab}
-                onTrigger={() => triggerIngestionRun(focused.id)}
-                onTogglePause={() =>
-                  setSourceStatus(
-                    focused.id,
-                    focused.status === 'paused' ? 'connected' : 'paused'
-                  )
-                }
-              />
-              <div className="flex-1 min-h-0 overflow-y-auto scroll-tactical">
-                {tab === 'overview' && <OverviewTab source={focused} />}
-                {tab === 'schema' && (
-                  <SchemaMappingView
-                    sourceId={focused.id}
-                    mapping={schemaMappings[focused.id]}
-                  />
-                )}
-                {tab === 'ingestion' && <IngestionTab runs={runsForSource} />}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center font-mono text-[10px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-              no source selected
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT — data health */}
-        <div className="surface overflow-hidden flex flex-col min-h-0">
-          <div className="px-3 h-8 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
-            <ShieldCheck className="w-3 h-3 text-[var(--color-emerald-400)]" />
-            <span className="heading-tactical">Data health</span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto scroll-tactical p-3 space-y-3">
-            <HealthGauge label="Topology completeness" value={0.94} />
-            <HealthGauge label="Edge density" value={0.81} />
-            <HealthGauge label="Relationship confidence" value={0.88} />
-            <HealthGauge label="Schema coverage" value={0.92} />
-            <div className="divider-h" />
-            <SmallStat label="Orphan entities" value="12,402" tone="amber" />
-            <SmallStat label="Duplicate suspects" value="3,118" tone="amber" />
-            <SmallStat label="Unmapped fields" value="6" tone="ice" />
-            <SmallStat label="Validation errors" value="14" tone="rose" />
-            <div className="divider-h" />
-            <div className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-              recent advisories
-            </div>
-            <Advisory
-              icon={AlertOctagon}
-              tone="rose"
-              title="Vendor risk webhook · 401 Unauthorized"
-              body="rotate vault:vendor-risk-2024 · paged on-call"
-            />
-            <Advisory
-              icon={Sparkles}
-              tone="ice"
-              title="GraphRAG suggests · merge 4 duplicate persons"
-              body="Levenshtein + device-fingerprint match · conf 0.91"
-            />
-            <Advisory
-              icon={FileJson}
-              tone="amber"
-              title="Card CSV · 14 malformed dates"
-              body="auto-quarantine · retry tomorrow at 06:00 UTC"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Connect-source catalog overlay */}
-      <AnimatePresence>
-        {showCatalog && <ConnectCatalog onClose={() => setShowCatalog(false)} />}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-function Stat({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  icon: typeof Activity;
-  tone: 'ice' | 'rose' | 'amber' | 'emerald';
-}) {
-  const color = {
-    ice: 'var(--color-ice-400)',
-    rose: 'var(--color-rose-400)',
-    amber: 'var(--color-amber-400)',
-    emerald: 'var(--color-emerald-400)',
-  }[tone];
-  return (
-    <div className="surface px-3 py-2">
-      <div className="flex items-center gap-1.5">
-        <Icon className="w-3 h-3" style={{ color }} />
-        <span
-          className="font-mono text-[9.5px] tracking-[0.22em] uppercase"
-          style={{ color }}
-        >
-          {label}
-        </span>
-      </div>
-      <div className="font-mono text-[17px] font-light leading-none mt-1.5" style={{ color }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SourceRow({
-  source,
-  active,
-  onClick,
-}: {
-  source: DataSource;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full text-left px-3 py-2 flex items-center gap-2.5 border-l-2 transition-colors',
-        active
-          ? 'bg-[rgba(34,211,238,0.06)] border-[var(--color-ice-500)]'
-          : 'border-transparent hover:bg-[rgba(34,211,238,0.04)]'
-      )}
-    >
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ background: HEALTH_COLOR[source.health] }}
-        title={source.health}
+    <div className="fill overflow-y-auto scroll-tactical">
+      <PageHeader
+        icon={Database}
+        eyebrow="intelligence environment"
+        title="Choose how this workspace ingests evidence"
+        meta="real TigerGraph hydration · no simulated runs"
       />
-      <div className="flex-1 min-w-0">
-        <div className="text-[11.5px] text-[var(--color-text-bright)] truncate">
-          {source.name}
-        </div>
-        <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] truncate">
-          {KIND_LABEL[source.kind]} · {source.cadence.replace('_', ' ')}
-        </div>
-      </div>
-      <SourceStatusChip status={source.status} />
-    </button>
-  );
-}
+      <div className="px-6 pb-10 max-w-[1280px] mx-auto flex flex-col gap-4 pt-2">
+        {/* Active environment + status bar */}
+        <ActiveEnvironmentStrip
+          env={env}
+          backendOffline={isOffline}
+          tgOffline={tgOffline}
+          busy={busy}
+          onRefresh={() => refresh({ probe: true })}
+        />
 
-function SourceStatusChip({ status }: { status: DataSource['status'] }) {
-  const meta = {
-    connected: { color: 'var(--color-emerald-400)', label: 'ok' },
-    syncing: { color: 'var(--color-ice-400)', label: 'sync' },
-    paused: { color: 'var(--color-text-muted)', label: 'paused' },
-    error: { color: 'var(--color-rose-400)', label: 'error' },
-    configured: { color: 'var(--color-text-secondary)', label: 'idle' },
-  }[status];
-  return (
-    <span
-      className="font-mono text-[8.5px] tracking-[0.22em] uppercase px-1.5 h-4 inline-flex items-center rounded-sm border shrink-0"
-      style={{
-        borderColor: `${meta.color}55`,
-        color: meta.color,
-        background: `${meta.color}0c`,
-      }}
-    >
-      {meta.label}
-    </span>
-  );
-}
+        {/* Operational readiness verdict — single source of truth.
+            Reads from `env.readiness` which the backend composes. */}
+        {env?.readiness && (
+          <EnvironmentReadinessStrip
+            readiness={env.readiness}
+            investigationReady={env.investigation_ready}
+            freshProbe={env.fresh_probe}
+            probeFailed={env.probe_failed}
+            reconnectAttempted={env.reconnect_attempted}
+          />
+        )}
 
-/* -------------------------------------------------------------------------- */
+        {/* Operational handoffs — only renders when environment is ready.
+            Hands off into /investigate (with seed), /benchmark, etc. */}
+        <SourceHandoffStrip env={env} />
 
-function FocusedHeader({
-  source,
-  tab,
-  setTab,
-  onTrigger,
-  onTogglePause,
-}: {
-  source: DataSource;
-  tab: Tab;
-  setTab: (t: Tab) => void;
-  onTrigger: () => void;
-  onTogglePause: () => void;
-}) {
-  return (
-    <div className="border-b border-[var(--color-line-soft)]">
-      <div className="px-3 py-2.5 flex items-start gap-3">
-        <div
-          className="w-8 h-8 rounded-sm border inline-flex items-center justify-center shrink-0"
-          style={{
-            borderColor: HEALTH_COLOR[source.health],
-            color: HEALTH_COLOR[source.health],
-            background: `${HEALTH_COLOR[source.health]}10`,
-          }}
-        >
-          <Cpu className="w-3.5 h-3.5" strokeWidth={1.4} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-medium text-[var(--color-text-bright)] truncate">
-              {source.name}
+        {err && (
+          <section className="surface px-3 py-2 border-l-2 border-[var(--color-rose-500)] flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-rose-400)] mt-0.5 shrink-0" />
+            <span className="font-mono text-[10.5px] text-[var(--color-rose-300)] break-all">
+              {err.slice(0, 320)}
             </span>
-            <SourceStatusChip status={source.status} />
-          </div>
-          <div className="font-mono text-[9.5px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] mt-0.5 truncate">
-            {KIND_LABEL[source.kind]} · {source.cadence.replace('_', ' ')} ·{' '}
-            {source.region ?? 'multi-region'} · {source.owner}
-          </div>
-          <div className="text-[11px] text-[var(--color-text-secondary)] mt-1.5">
-            {source.description}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-[var(--color-text-muted)]">
-              uri
-            </span>
-            <code className="font-mono text-[10px] text-[var(--color-text-primary)] truncate">
-              {source.uri}
-            </code>
-          </div>
+            <button
+              onClick={() => setErr(null)}
+              className="ml-auto font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] hover:text-[var(--color-rose-400)]"
+            >
+              dismiss
+            </button>
+          </section>
+        )}
+
+        {/* Three-path landing */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <SampleEcosystemCard
+            running={sampleRunning}
+            result={sampleResult}
+            canLaunch={!isOffline && !tgOffline}
+            onLaunch={launchSample}
+          />
+          <UploadCustomCard
+            expanded={showUpload}
+            onToggle={() => setShowUpload((v) => !v)}
+            disabled={isOffline}
+            uploads={uploads.length}
+          />
+          <OperationalConnectorPanel
+            env={env}
+            backendOffline={isOffline}
+            tgOffline={tgOffline}
+            onOpenUpload={() => setShowUpload(true)}
+            onRefresh={refresh}
+          />
         </div>
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <button
-            onClick={onTrigger}
-            disabled={source.status === 'paused'}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase rounded-sm border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.06)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.1)] disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className="w-3 h-3" />
-            run now
-          </button>
-          <button
-            onClick={onTogglePause}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase rounded-sm border border-[var(--color-line)] text-[var(--color-text-secondary)] hover:text-[var(--color-violet-400)] hover:border-[rgba(168,85,247,0.4)]"
-          >
-            {source.status === 'paused' ? (
-              <>
-                <Play className="w-3 h-3" />
-                resume
-              </>
-            ) : (
-              <>
-                <Pause className="w-3 h-3" />
-                pause
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-      {/* Tab strip */}
-      <div className="px-2 h-8 flex items-center gap-1 border-t border-[var(--color-line-soft)]">
-        {(['overview', 'schema', 'ingestion'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'h-6 px-2.5 rounded-sm font-mono text-[10px] tracking-[0.26em] uppercase',
-              tab === t
-                ? 'text-[var(--color-ice-400)] bg-[rgba(34,211,238,0.10)] border border-[rgba(34,211,238,0.32)]'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-transparent'
-            )}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-/* -------------------------------------------------------------------------- */
+        {/* Upload pane (collapsed by default; expands when "Upload Custom Dataset" clicked) */}
+        {showUpload && (
+          <UploadPane
+            dragOver={dragOver}
+            schema={schema}
+            isOffline={isOffline}
+            tgOffline={tgOffline}
+            fileInputRef={fileInputRef}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              handleFiles(e.dataTransfer?.files ?? null);
+            }}
+            onSelect={(files) => {
+              handleFiles(files);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+          />
+        )}
 
-function OverviewTab({ source }: { source: DataSource }) {
-  return (
-    <div className="p-3 space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        <KV label="rows ingested" value={formatBig(source.rowsIngested)} />
-        <KV label="entities produced" value={formatBig(source.entitiesProduced)} />
-        <KV label="edges produced" value={formatBig(source.edgesProduced)} />
-        <KV label="last sync" value={source.lastSyncAt ? formatTime(source.lastSyncAt) : '—'} />
-        <KV label="connected" value={formatRelative(source.connectedAt)} />
-        <KV label="recent errors" value={String(source.errorCount)} tone={source.errorCount > 0 ? 'rose' : 'emerald'} />
-      </div>
-
-      <div className="surface px-3 py-2">
-        <div className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] mb-1.5">
-          credentials · masked
-        </div>
-        <code className="font-mono text-[11px] text-[var(--color-text-primary)] block truncate">
-          {source.credentialRef}
-        </code>
-      </div>
-
-      <div className="surface px-3 py-2.5">
-        <div className="flex items-center gap-2 mb-2">
-          <Activity className="w-3 h-3 text-[var(--color-ice-400)]" />
-          <span className="heading-tactical">Pipeline</span>
-        </div>
-        <PipelineFlow source={source} />
-      </div>
-    </div>
-  );
-}
-
-function PipelineFlow({ source }: { source: DataSource }) {
-  const steps = [
-    { id: 'extract', label: 'Extract', icon: Database, sub: KIND_LABEL[source.kind] },
-    { id: 'normalize', label: 'Normalize', icon: Workflow, sub: 'PII vaulted · UTF-8' },
-    { id: 'map', label: 'Schema map', icon: GitBranch, sub: 'entity + edge rules' },
-    { id: 'dedupe', label: 'Dedupe', icon: ShieldCheck, sub: 'fingerprint match' },
-    { id: 'graph', label: 'Graph sync', icon: Network, sub: 'topology write' },
-  ];
-  return (
-    <div className="flex items-stretch gap-2">
-      {steps.map((s, i) => (
-        <div key={s.id} className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="flex-1 px-2 py-2 rounded-sm border border-[var(--color-line-soft)] bg-[rgba(255,255,255,0.012)] min-w-0">
-            <div className="flex items-center gap-1.5">
-              <s.icon className="w-3 h-3 text-[var(--color-ice-400)]" />
-              <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-secondary)] truncate">
-                {s.label}
+        {/* Latest promotion outcome */}
+        {latestPromotion && (
+          <section className="surface px-3 py-3 border-l-2 border-[var(--color-emerald-500)]">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-emerald-400)]" />
+              <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-[var(--color-emerald-400)]">
+                promoted to live tigergraph
+              </span>
+              <span className="ml-auto font-mono text-[9.5px] text-[var(--color-text-muted)]">
+                {latestPromotion.elapsedS}s
               </span>
             </div>
-            <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-[var(--color-text-muted)] mt-0.5 truncate">
-              {s.sub}
+            <div className="text-[11.5px] text-[var(--color-text-secondary)] mt-1">
+              Inserted{' '}
+              <strong className="text-[var(--color-text-bright)]">
+                {latestPromotion.inserted}
+              </strong>{' '}
+              records · skipped <strong>{latestPromotion.skipped}</strong>.
             </div>
-          </div>
-          {i < steps.length - 1 && (
-            <span className="text-[var(--color-text-muted)] font-mono text-[10px] shrink-0">→</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
+          </section>
+        )}
 
-function KV({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: 'rose' | 'emerald' | 'ice';
-}) {
-  const color = tone
-    ? { rose: 'var(--color-rose-400)', emerald: 'var(--color-emerald-400)', ice: 'var(--color-ice-400)' }[tone]
-    : 'var(--color-text-bright)';
-  return (
-    <div className="surface px-3 py-2">
-      <div className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-        {label}
-      </div>
-      <div
-        className="font-mono text-[14px] font-light mt-0.5 truncate"
-        style={{ color }}
-      >
-        {value}
+        {/* Sample ingestion stage report */}
+        {sampleResult && <SampleResultPanel result={sampleResult} />}
+
+        {/* Recent uploads */}
+        {uploads.length > 0 && (
+          <UploadListPanel
+            uploads={uploads}
+            promotingId={promotingId}
+            canPromote={!isOffline && !tgOffline}
+            onPromote={promote}
+            onDelete={remove}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
+/* Active environment header                                                  */
+/* -------------------------------------------------------------------------- */
 
-function IngestionTab({ runs }: { runs: IngestionRun[] }) {
-  if (runs.length === 0) {
-    return (
-      <div className="p-6 text-center font-mono text-[10px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-        no ingestion runs yet
-      </div>
-    );
-  }
+function ActiveEnvironmentStrip({
+  env,
+  backendOffline,
+  tgOffline,
+  busy,
+  onRefresh,
+}: {
+  env: BackendEnvironmentState | null;
+  backendOffline: boolean;
+  tgOffline: boolean;
+  busy: boolean;
+  onRefresh: () => void;
+}) {
+  const totalVertices = env?.total_vertices ?? 0;
+  const tone =
+    backendOffline ? 'rose'
+    : tgOffline ? 'amber'
+    : 'emerald';
+  const label =
+    backendOffline ? 'orchestrator offline'
+    : tgOffline ? 'tigergraph offline · investigations limited'
+    : 'tigergraph connected';
+  const color =
+    tone === 'rose'
+      ? 'var(--color-rose-400)'
+      : tone === 'amber'
+      ? 'var(--color-amber-400)'
+      : 'var(--color-emerald-400)';
   return (
-    <div className="divide-y divide-[var(--color-line-soft)]">
-      {runs.map((r) => (
-        <div key={r.id} className="px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <RunStatusDot status={r.status} />
-            <span className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-              {r.id}
-            </span>
-            <span className="text-[11.5px] text-[var(--color-text-bright)]">
-              {formatTime(r.startedAt)}
-              {r.finishedAt && ` → ${formatTime(r.finishedAt)}`}
-            </span>
-            <span className="ml-auto font-mono text-[9.5px] tracking-[0.22em] uppercase">
-              <RunStatusLabel status={r.status} />
-            </span>
-          </div>
-          <div className="grid grid-cols-5 gap-1.5 mt-2 text-[10.5px]">
-            <RunMetric label="rows" value={r.rowsRead.toLocaleString()} />
-            <RunMetric label="+entities" value={`+${r.entitiesAdded.toLocaleString()}`} tone="ice" />
-            <RunMetric label="+edges" value={`+${r.edgesAdded.toLocaleString()}`} tone="amber" />
-            <RunMetric
-              label="rings"
-              value={`+${r.ringsDiscovered}`}
-              tone={r.ringsDiscovered > 0 ? 'rose' : undefined}
-            />
-            <RunMetric
-              label="hidden"
-              value={`+${r.hiddenLinksFound}`}
-              tone={r.hiddenLinksFound > 0 ? 'violet' : undefined}
-            />
-          </div>
-          {r.log.length > 0 && (
-            <div className="mt-2 font-mono text-[10px] text-[var(--color-text-muted)] space-y-0.5">
-              {r.log.map((l, i) => (
-                <div key={i} className="truncate">
-                  <span className="text-[var(--color-text-faint)]">›</span> {l}
-                </div>
+    <section className="surface px-4 py-2.5 flex items-center gap-3 flex-wrap">
+      <span className="w-1.5 h-1.5 rounded-full anim-drift" style={{ background: color }} />
+      <span className="font-mono text-[10px] tracking-[0.32em] uppercase" style={{ color }}>
+        active environment · {label}
+      </span>
+      {env && (
+        <>
+          <span className="text-[var(--color-text-ghost)] mx-1">·</span>
+          <span className="font-mono text-[10.5px] text-[var(--color-text-bright)]">
+            {totalVertices.toLocaleString()} vertices
+          </span>
+          <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+            ({env.uploads_total} uploads · {env.uploads_promoted} promoted)
+          </span>
+        </>
+      )}
+      <button
+        onClick={onRefresh}
+        disabled={busy}
+        className="ml-auto h-6 px-2 inline-flex items-center gap-1.5 rounded-sm font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] hover:text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.04)]"
+      >
+        <RefreshCw className={cn('w-3 h-3', busy && 'animate-spin')} />
+        refresh
+      </button>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Three landing cards                                                        */
+/* -------------------------------------------------------------------------- */
+
+function SampleEcosystemCard({
+  running,
+  result,
+  canLaunch,
+  onLaunch,
+}: {
+  running: boolean;
+  result: BackendSampleIngestResult | null;
+  canLaunch: boolean;
+  onLaunch: () => void;
+}) {
+  const promoted = result != null;
+  return (
+    <section className="surface p-4 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5 text-[var(--color-emerald-400)]" />
+        <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-emerald-400)]">
+          sample fraud ecosystem
+        </span>
+      </div>
+      <div className="text-[13px] text-[var(--color-text-bright)] font-light leading-snug">
+        Launch a curated adversarial topology.
+      </div>
+      <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+        ~25,000 entities · hidden rings · laundering chains · intermediary
+        shells · shared infrastructure · benchmark-ready investigations.
+      </p>
+      <ul className="text-[10.5px] text-[var(--color-text-muted)] leading-relaxed space-y-0.5 mt-1">
+        {[
+          'Persons · Companies · Accounts · Addresses · Devices · Transactions',
+          '15 fraud rings · structural cross-references',
+          'directly investigatable after ingestion',
+        ].map((b) => (
+          <li key={b} className="flex items-start gap-1">
+            <span className="text-[var(--color-emerald-400)]">▸</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={onLaunch}
+        disabled={!canLaunch || running}
+        className={cn(
+          'mt-auto h-9 px-3 inline-flex items-center justify-center gap-2 rounded-sm text-[10.5px] font-mono tracking-[0.26em] uppercase',
+          canLaunch && !running
+            ? 'border border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.07)] text-[var(--color-emerald-400)] hover:bg-[rgba(16,185,129,0.12)]'
+            : 'border border-[var(--color-line)] text-[var(--color-text-muted)] cursor-not-allowed',
+        )}
+      >
+        {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+        {running ? 'hydrating tigergraph…' : promoted ? 're-launch' : 'launch ecosystem'}
+      </button>
+      {!canLaunch && (
+        <div className="font-mono text-[9.5px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] text-center">
+          requires tigergraph online
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UploadCustomCard({
+  expanded,
+  onToggle,
+  disabled,
+  uploads,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  disabled: boolean;
+  uploads: number;
+}) {
+  return (
+    <section className="surface p-4 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <UploadCloud className="w-3.5 h-3.5 text-[var(--color-ice-400)]" />
+        <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-ice-400)]">
+          custom dataset
+        </span>
+      </div>
+      <div className="text-[13px] text-[var(--color-text-bright)] font-light leading-snug">
+        Upload your own topology.
+      </div>
+      <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+        CSV or TSV per vertex type · schema sniffed against the live graph ·
+        promote to TigerGraph on demand.
+      </p>
+      <ul className="text-[10.5px] text-[var(--color-text-muted)] leading-relaxed space-y-0.5 mt-1">
+        {[
+          'Person · Company · Account · Address · Device · Transaction',
+          'column rename + type coercion handled automatically',
+          'uploaded vertices become live-investigatable',
+        ].map((b) => (
+          <li key={b} className="flex items-start gap-1">
+            <span className="text-[var(--color-ice-400)]">▸</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={onToggle}
+        disabled={disabled}
+        className={cn(
+          'mt-auto h-9 px-3 inline-flex items-center justify-center gap-2 rounded-sm text-[10.5px] font-mono tracking-[0.26em] uppercase',
+          !disabled
+            ? 'border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.06)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.12)]'
+            : 'border border-[var(--color-line)] text-[var(--color-text-muted)] cursor-not-allowed',
+        )}
+      >
+        <Upload className="w-3 h-3" />
+        {expanded ? 'hide upload pane' : 'open upload pane'}
+        {uploads > 0 && (
+          <span className="chip text-[8.5px] ml-1">{uploads}</span>
+        )}
+      </button>
+    </section>
+  );
+}
+
+// Static connector gallery removed — superseded by
+// `<OperationalConnectorPanel>` (src/components/sources/OperationalConnectorPanel.tsx)
+// which renders live state per adapter + real actions.
+
+/* -------------------------------------------------------------------------- */
+/* Upload pane (expanded)                                                     */
+/* -------------------------------------------------------------------------- */
+
+function UploadPane({
+  dragOver,
+  schema,
+  isOffline,
+  tgOffline,
+  fileInputRef,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onSelect,
+}: {
+  dragOver: boolean;
+  schema: BackendIngestSchema | null;
+  isOffline: boolean;
+  tgOffline: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onSelect: (files: FileList | null) => void;
+}) {
+  return (
+    <section
+      className={cn(
+        'surface px-4 py-6 transition-colors',
+        dragOver && 'bg-[rgba(34,211,238,0.04)]',
+      )}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+        <UploadCloud className="w-7 h-7 text-[var(--color-ice-400)] opacity-80" />
+        <div className="text-[12.5px] text-[var(--color-text-bright)] font-light mt-1">
+          Drop a CSV here · or click to browse
+        </div>
+        <div className="font-mono text-[9.5px] tracking-[0.18em] uppercase text-[var(--color-text-muted)]">
+          POST /api/v1/ingest/upload · live TigerGraph endpoint
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.tsv,.txt"
+          className="hidden"
+          onChange={(e) => onSelect(e.target.files)}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isOffline || tgOffline}
+          className="mt-1 h-8 px-3 inline-flex items-center gap-2 rounded-sm border border-[rgba(34,211,238,0.4)] bg-[rgba(34,211,238,0.06)] text-[var(--color-ice-400)] hover:bg-[rgba(34,211,238,0.12)] disabled:opacity-40 disabled:cursor-not-allowed text-[10.5px] font-mono tracking-[0.26em] uppercase"
+        >
+          <Upload className="w-3 h-3" />
+          choose file
+        </button>
+        {schema && (
+          <div className="mt-3 max-w-[640px]">
+            <div className="font-mono text-[9px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] mb-1">
+              recognized schemas
+            </div>
+            <div className="flex flex-wrap justify-center gap-1">
+              {schema.supported.map((s) => (
+                <span
+                  key={s.vertex_type}
+                  title={`required: ${s.required.join(', ')}\noptional: ${s.optional.join(', ')}`}
+                  className="chip text-[8.5px] border-[rgba(34,211,238,0.28)] text-[var(--color-ice-400)]"
+                >
+                  {s.vertex_type}
+                </span>
               ))}
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
-function RunStatusDot({ status }: { status: IngestionRun['status'] }) {
-  const color = {
-    queued: 'var(--color-text-faint)',
-    running: 'var(--color-ice-400)',
-    success: 'var(--color-emerald-400)',
-    partial: 'var(--color-amber-400)',
-    failed: 'var(--color-rose-400)',
-  }[status];
+/* -------------------------------------------------------------------------- */
+/* Sample ingestion stage report                                              */
+/* -------------------------------------------------------------------------- */
+
+function SampleResultPanel({ result }: { result: BackendSampleIngestResult }) {
   return (
-    <span className="relative inline-flex w-1.5 h-1.5">
-      {status === 'running' && (
-        <span
-          className="absolute inset-0 rounded-full anim-pulse-ring"
-          style={{ background: color }}
-        />
+    <section className="surface overflow-hidden">
+      <div className="px-4 h-9 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
+        <Sparkles className="w-3 h-3 text-[var(--color-emerald-400)]" />
+        <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-emerald-400)]">
+          sample ecosystem · hydration report
+        </span>
+        <span className="ml-auto font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
+          {result.elapsed_s}s total · {result.total_records.toLocaleString()} records
+        </span>
+      </div>
+      <div className="divide-y divide-[var(--color-line-soft)]">
+        {result.stages.map((s) => (
+          <div key={s.vertex_type} className="px-4 py-2 flex items-center gap-3">
+            <Layers className="w-3 h-3 text-[var(--color-text-muted)]" />
+            <span className="font-mono text-[10.5px] text-[var(--color-text-bright)] w-28">
+              {s.vertex_type}
+            </span>
+            <span className="font-mono text-[9.5px] text-[var(--color-text-muted)] truncate">
+              {s.file}
+            </span>
+            <span className="ml-auto font-mono text-[10.5px] text-[var(--color-emerald-400)]">
+              {s.records.toLocaleString()}
+            </span>
+            <span className="font-mono text-[9.5px] text-[var(--color-text-muted)] w-16 text-right">
+              {s.elapsed_s}s
+            </span>
+          </div>
+        ))}
+      </div>
+      {result.vertex_counts && (
+        <div className="px-4 py-2 border-t border-[var(--color-line-soft)] flex flex-wrap gap-1">
+          {Object.entries(result.vertex_counts).map(([t, n]) => (
+            <span key={t} className="chip text-[8.5px]">
+              {t}:{' '}
+              <span className="font-mono text-[var(--color-text-bright)] ml-1">
+                {n.toLocaleString()}
+              </span>
+            </span>
+          ))}
+        </div>
       )}
-      <span
-        className="relative inline-flex w-1.5 h-1.5 rounded-full"
-        style={{ background: color }}
-      />
-    </span>
+    </section>
   );
 }
 
-function RunStatusLabel({ status }: { status: IngestionRun['status'] }) {
-  const meta = {
-    queued: { label: 'queued', color: 'var(--color-text-muted)' },
-    running: { label: 'running', color: 'var(--color-ice-400)' },
-    success: { label: '✓ success', color: 'var(--color-emerald-400)' },
-    partial: { label: '◑ partial', color: 'var(--color-amber-400)' },
-    failed: { label: '✕ failed', color: 'var(--color-rose-400)' },
-  }[status];
-  return <span style={{ color: meta.color }}>{meta.label}</span>;
-}
+/* -------------------------------------------------------------------------- */
+/* Recent uploads list                                                        */
+/* -------------------------------------------------------------------------- */
 
-function RunMetric({
-  label,
-  value,
-  tone,
+function UploadListPanel({
+  uploads,
+  promotingId,
+  canPromote,
+  onPromote,
+  onDelete,
 }: {
-  label: string;
-  value: string;
-  tone?: 'ice' | 'amber' | 'rose' | 'violet';
+  uploads: BackendUploadManifest[];
+  promotingId: string | null;
+  canPromote: boolean;
+  onPromote: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
-  const color = tone
-    ? {
-        ice: 'var(--color-ice-400)',
-        amber: 'var(--color-amber-400)',
-        rose: 'var(--color-rose-400)',
-        violet: 'var(--color-violet-400)',
-      }[tone]
-    : 'var(--color-text-primary)';
   return (
-    <div className="rounded-sm bg-[rgba(255,255,255,0.012)] border border-[var(--color-line-soft)] px-1.5 py-1">
-      <div className="font-mono text-[8.5px] tracking-[0.16em] uppercase text-[var(--color-text-muted)]">
-        {label}
+    <section className="surface overflow-hidden">
+      <div className="px-4 h-9 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
+        <FileText className="w-3 h-3 text-[var(--color-text-muted)]" />
+        <span className="font-mono text-[10px] tracking-[0.32em] uppercase text-[var(--color-text-muted)]">
+          recent uploads
+        </span>
+        <span className="chip ml-1 text-[8.5px]">{uploads.length}</span>
       </div>
-      <div className="font-mono text-[11px]" style={{ color }}>
-        {value}
+      <div className="divide-y divide-[var(--color-line-soft)]">
+        {uploads.map((u) => (
+          <UploadCard
+            key={u.upload_id}
+            upload={u}
+            promoting={promotingId === u.upload_id}
+            canPromote={canPromote && !u.promoted}
+            onPromote={() => onPromote(u.upload_id)}
+            onDelete={() => onDelete(u.upload_id)}
+          />
+        ))}
       </div>
-    </div>
+    </section>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Right-side helpers                                                         */
-/* -------------------------------------------------------------------------- */
-
-function HealthGauge({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(value * 100);
-  const tone =
-    value >= 0.9
-      ? 'var(--color-emerald-400)'
-      : value >= 0.75
-      ? 'var(--color-ice-400)'
-      : value >= 0.55
-      ? 'var(--color-amber-400)'
-      : 'var(--color-rose-400)';
+function UploadCard({
+  upload: u,
+  promoting,
+  canPromote,
+  onPromote,
+  onDelete,
+}: {
+  upload: BackendUploadManifest;
+  promoting: boolean;
+  canPromote: boolean;
+  onPromote: () => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div>
-      <div className="flex items-center justify-between">
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <FileText className="w-3.5 h-3.5 text-[var(--color-ice-400)] shrink-0" />
+        <span className="text-[12px] font-medium text-[var(--color-text-bright)]">
+          {u.filename}
+        </span>
         <span className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-          {label}
+          {u.row_count.toLocaleString()} rows · {(u.size_bytes / 1024).toFixed(1)} KB
         </span>
-        <span className="font-mono text-[11px]" style={{ color: tone }}>
-          {pct}%
-        </span>
-      </div>
-      <div className="h-1 mt-1 rounded-full bg-[var(--color-graphite-800)] overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="h-full"
-          style={{ background: tone }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SmallStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'rose' | 'amber' | 'ice' | 'emerald';
-}) {
-  const color = {
-    rose: 'var(--color-rose-400)',
-    amber: 'var(--color-amber-400)',
-    ice: 'var(--color-ice-400)',
-    emerald: 'var(--color-emerald-400)',
-  }[tone];
-  return (
-    <div className="flex items-center justify-between">
-      <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-[var(--color-text-muted)]">
-        {label}
-      </span>
-      <span className="font-mono text-[12px]" style={{ color }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Advisory({
-  icon: Icon,
-  tone,
-  title,
-  body,
-}: {
-  icon: typeof Activity;
-  tone: 'rose' | 'amber' | 'ice';
-  title: string;
-  body: string;
-}) {
-  const color = {
-    rose: 'var(--color-rose-400)',
-    amber: 'var(--color-amber-400)',
-    ice: 'var(--color-ice-400)',
-  }[tone];
-  return (
-    <div className="rounded-sm bg-[rgba(255,255,255,0.012)] border-l-2 px-2 py-1.5" style={{ borderColor: color }}>
-      <div className="flex items-center gap-1.5">
-        <Icon className="w-3 h-3" style={{ color }} />
-        <span className="text-[11px] text-[var(--color-text-primary)] truncate">{title}</span>
-      </div>
-      <div className="text-[10.5px] text-[var(--color-text-secondary)] mt-0.5">{body}</div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Connect-source catalog                                                     */
-/* -------------------------------------------------------------------------- */
-
-function ConnectCatalog({ onClose }: { onClose: () => void }) {
-  const groups: Record<SourceCategory, SourceKind[]> = {
-    database: [],
-    file: [],
-    streaming: [],
-    cloud_storage: [],
-    api: [],
-  };
-  AVAILABLE_KINDS.forEach((k) => groups[KIND_TO_CATEGORY[k]].push(k));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-[80] flex items-center justify-center"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="absolute inset-0 bg-[rgba(0,0,3,0.55)] backdrop-blur-sm" />
-      <motion.div
-        initial={{ y: 14, opacity: 0, scale: 0.98 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 6, opacity: 0 }}
-        transition={{ duration: 0.22 }}
-        className="relative surface-floating w-[800px] max-w-[92vw] max-h-[80vh] overflow-hidden"
-      >
-        <div className="h-10 px-4 flex items-center gap-2 border-b border-[var(--color-line-soft)]">
-          <Plus className="w-3.5 h-3.5 text-[var(--color-ice-400)]" />
-          <span className="heading-tactical">Connect a source</span>
-          <span className="font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] ml-2">
-            {AVAILABLE_KINDS.length} connectors available
+        {u.detected_type ? (
+          <span className="chip text-[8.5px] inline-flex items-center gap-1 border-[rgba(16,185,129,0.32)] text-[var(--color-emerald-400)]">
+            <CheckCircle2 className="w-2.5 h-2.5" />
+            schema · {u.detected_type}
           </span>
+        ) : (
+          <span className="chip text-[8.5px] inline-flex items-center gap-1 border-[rgba(245,158,11,0.32)] text-[var(--color-amber-400)]">
+            <AlertTriangle className="w-2.5 h-2.5" />
+            unrecognized schema
+          </span>
+        )}
+        {u.promoted && (
+          <span className="chip chip-emerald text-[8.5px]">promoted</span>
+        )}
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-auto font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)] hover:text-[var(--color-ice-400)]"
+        >
+          {expanded ? 'collapse' : 'preview'}
+        </button>
+        {canPromote && (
           <button
-            onClick={onClose}
-            className="ml-auto w-6 h-6 inline-flex items-center justify-center rounded-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[rgba(148,163,184,0.06)]"
+            onClick={onPromote}
+            disabled={promoting}
+            className="h-6 px-2 inline-flex items-center gap-1 rounded-sm border border-[rgba(168,85,247,0.4)] bg-[rgba(168,85,247,0.06)] text-[var(--color-violet-400)] hover:bg-[rgba(168,85,247,0.12)] disabled:opacity-40 disabled:cursor-not-allowed text-[9.5px] font-mono tracking-[0.22em] uppercase"
           >
-            <X className="w-3.5 h-3.5" />
+            {promoting ? <Loader2 className="w-3 h-3 animate-spin" /> : <UploadCloud className="w-3 h-3" />}
+            promote
           </button>
-        </div>
-        <div className="p-3 max-h-[68vh] overflow-y-auto scroll-tactical">
-          {(Object.keys(groups) as SourceCategory[]).map((cat) => {
-            const items = groups[cat];
-            const Icon = CATEGORY_ICON[cat];
-            return (
-              <div key={cat} className="mb-4 last:mb-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-3 h-3 text-[var(--color-text-muted)]" />
-                  <span className="heading-tactical">{CATEGORY_LABEL[cat]}</span>
-                  <span className="chip ml-auto text-[8.5px]">{items.length}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {items.map((k) => (
-                    <button
-                      key={k}
-                      className="text-left px-3 py-2.5 rounded-sm border border-[var(--color-line-soft)] hover:border-[rgba(34,211,238,0.32)] hover:bg-[rgba(34,211,238,0.04)] transition-colors"
-                    >
-                      <div className="text-[12px] text-[var(--color-text-bright)]">
-                        {KIND_LABEL[k]}
-                      </div>
-                      <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] mt-0.5">
-                        connect → map → ingest
-                      </div>
-                    </button>
+        )}
+        <button
+          onClick={onDelete}
+          className="h-6 w-6 inline-flex items-center justify-center rounded-sm text-[var(--color-text-muted)] hover:text-[var(--color-rose-400)] hover:bg-[rgba(244,63,94,0.05)]"
+          title="delete this upload"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 panel-soft p-2 overflow-x-auto">
+          <table className="w-full font-mono text-[10.5px]">
+            <thead>
+              <tr className="border-b border-[var(--color-line-soft)] text-[var(--color-text-muted)] uppercase tracking-[0.16em] text-[9px]">
+                {u.header.map((h) => (
+                  <th key={h} className="text-left px-2 py-1">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {u.preview.map((row, i) => (
+                <tr key={i} className="border-b border-[var(--color-line-soft)] last:border-b-0">
+                  {row.map((cell, j) => (
+                    <td key={j} className="px-2 py-1 text-[var(--color-text-secondary)] truncate max-w-[180px]">
+                      {cell}
+                    </td>
                   ))}
-                </div>
-              </div>
-            );
-          })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="h-10 px-4 flex items-center gap-2 border-t border-[var(--color-line-soft)] font-mono text-[9.5px] tracking-[0.22em] uppercase text-[var(--color-text-muted)]">
-          all connectors honor your vault-stored credentials · PII never leaves the source
-          <span className="ml-auto">
-            <span className="kbd text-[8.5px]">ESC</span> close
-          </span>
-        </div>
-      </motion.div>
-    </motion.div>
+      )}
+    </div>
   );
-}
-
-/* -------------------------------------------------------------------------- */
-
-function formatBig(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
-
-function formatRelative(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
-  return `${Math.round(ms / 86_400_000)}d ago`;
 }

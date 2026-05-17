@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { cn, formatTime } from '@/lib/utils';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import {
   ChevronLeft,
   ChevronRight,
@@ -135,6 +136,10 @@ export function Replay() {
 
   return (
     <div className="fill overflow-hidden">
+      <SyntheticScenarioRibbon
+        label="replay visualization"
+        hint="scenario stream replay · not live retrieval"
+      />
       {/* Workspace micro-tabs strip + slim contextual rail */}
       <WorkspaceTabs />
       <TacticalRail defaultTab="replay" />

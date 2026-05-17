@@ -1,89 +1,109 @@
-# Shadow Network Intelligence - Quick Start
+# Quick Start
+
+A 6-step path from clone to a live investigation. See [README.md](../README.md)
+for the platform overview and thesis.
 
 ## Prerequisites
-- Docker & Docker Compose
-- Python 3.10+
+
+- Python 3.10+ (project tested on 3.14)
 - Node.js 18+
-- 8GB RAM minimum
+- A TigerGraph Cloud workspace (or set `TIGERGRAPH_*` env vars to `OFFLINE` to
+  use the file-based fallback)
+- Optional: NVIDIA NIM API key for production-grade embeddings
 
-## One-Command Setup
+## 1. Install dependencies
+
 ```bash
-./9_devops/scripts/dev_setup.sh
+pip install -r requirements.txt
+cd 8_dashboard_ui && npm install && cd ..
 ```
 
-## Manual Setup
+## 2. Configure secrets
 
-### 1. Clone and Setup
+The single source of truth for secrets is `.env` at the project root.
+`config.yaml` placeholder fields stay empty.
+
 ```bash
-git clone https://github.com/tigergraph/graphrag.git libs/tigergraph_graphrag
-cd libs/tigergraph_graphrag && pip install -e .
+# minimum required
+TIGERGRAPH_HOST=https://<your-instance>.i.tgcloud.io
+TIGERGRAPH_GSQL_SECRET=<from-portal>
+TIGERGRAPH_GRAPH=ShadowGraph
+
+# optional
+NIM_API_KEY=<for-real-embeddings>
+SNI_RESULT_CACHE_ENABLED=1
+SNI_PREWARM_ON_START=1
+SNI_PRESET_PREWARM=0   # leave 0 unless you want a slow boot
 ```
 
-### 2. Environment
+## 3. Generate the dataset (small profile, ~30s)
+
 ```bash
-cp .env.example .env
-# Edit .env with your settings
+python -m 1_data_engine generate --profile small --new-pipeline
 ```
 
-### 3. Start Services
+Outputs land in `outputs/small/csv/` (14 CSVs) and `outputs/small/json/`.
+
+## 4. Load + validate TigerGraph
+
 ```bash
-docker-compose up -d
+python -m 3_graph_intelligence_core load small
+python -m 3_graph_intelligence_core health
 ```
 
-### 4. Generate Data
+Expected: `Mode: ONLINE` and vertex counts matching the small profile.
+
+## 5. Boot the orchestrator API (port 8000)
+
 ```bash
-python 1_data_engine/generators/main_generator.py --size small
+PYTHONPATH=.:4_orchestrator_api \
+SNI_RESULT_CACHE_ENABLED=1 \
+SNI_PRESET_PREWARM=0 \
+uvicorn main:app --app-dir 4_orchestrator_api --host 0.0.0.0 --port 8000
 ```
 
-### 5. Run Demo
+Verify:
+
 ```bash
-./9_devops/scripts/run_demo.sh
+curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/api/v1/orchestrator/status
 ```
 
-## Access Points
-
-| Service | URL |
-|---------|-----|
-| Dashboard | http://localhost:3000 |
-| API | http://localhost:8000/api/v1 |
-| Swagger | http://localhost:8000/docs |
-| TigerGraph | http://localhost:14240 |
-
-## Basic Commands
+## 6. Boot the dashboard (port 5173)
 
 ```bash
-# Start all services
-make docker-up
+cd 8_dashboard_ui
+npm run dev
+```
 
-# Stop all services
-make docker-down
+Open **http://localhost:5173/**. The TopBar pill flips **LIVE** within 4s if
+the orchestrator is reachable, **TG-OFF** if TigerGraph is in offline
+fallback, **OFFLINE** if the API can't be reached.
 
-# Run benchmark
-make benchmark
+## Verify the full benchmark
 
-# Generate data
-make generate-data
+```bash
+python3 scripts/tigergraph_validate.py
+python3 scripts/benchmark_reliability.py --limit 5
+python3 scripts/adversarial_benchmark.py --profile small
+python3 scripts/benchmark_full_report.py --profile small
+cat scripts/benchmark_full_report.md
+```
 
-# View logs
-make logs
+## Quick CLI investigation
+
+```bash
+python3 -m 5_agent_swarm   --preset ring-identification
+python3 -m 6_reasoning_engine --preset ring-identification
+python3 -m 7_reporting_engine brief --preset ring-identification
 ```
 
 ## Troubleshooting
 
-### Ollama not responding
-```bash
-ollama serve
-```
-
-### TigerGraph connection fails
-```bash
-docker-compose restart tigergraph
-```
-
-### LLM returns no response
-```bash
-# Check if model is downloaded
-ollama list
-# Pull model if needed
-ollama pull llama3.2
-```
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Pill shows `OFFLINE` | API not running on port 8000 | Re-run step 5; check `/health` |
+| Pill shows `TG-OFF` | TigerGraph workspace paused or token rotated | Unpause workspace; restart orchestrator (it re-probes) |
+| `python -m 1_data_engine` errors | wrong CWD | Run from project root |
+| Boot is slow (>30s) | `SNI_PRESET_PREWARM=1` is running 8 demos at startup | Set `SNI_PRESET_PREWARM=0`; cache warms on-demand |
+| `No module named '1_data_engine'` | running as script instead of module | Use `python -m 1_data_engine`, not `python 1_data_engine/main.py` |

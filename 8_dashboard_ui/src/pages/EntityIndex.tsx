@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useIntelStore } from '@/store/intel-store';
 import { cn, entityGlyph, riskToTier, tierColor } from '@/lib/utils';
 import { Network, Search, ShieldAlert } from 'lucide-react';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import type { Entity, EntityKind, PresetSnapshot } from '@/types/intel';
 import { RiskBadge } from '@/components/shared/RiskBadge';
 
@@ -70,7 +71,8 @@ export function EntityIndex() {
 
   return (
     <div className="fill overflow-y-auto scroll-tactical">
-      <div className="px-6 pt-16 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
+      <SyntheticScenarioRibbon hint="entity catalogue · preset corpus" />
+      <div className="px-6 pt-24 pb-10 mx-auto" style={{ maxWidth: 1480 }}>
         {/* Header */}
         <div className="flex items-end justify-between mb-4">
           <div>

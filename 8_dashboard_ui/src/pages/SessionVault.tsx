@@ -1,6 +1,7 @@
 import { useIntelStore } from '@/store/intel-store';
 import { Panel } from '@/components/shared/Panel';
 import { Atmosphere } from '@/components/shared/Atmosphere';
+import { SyntheticScenarioRibbon } from '@/components/shared/SyntheticScenarioRibbon';
 import { cn, formatTime } from '@/lib/utils';
 import {
   Archive,
@@ -23,7 +24,12 @@ export function SessionVault() {
     <div className="fill bg-[var(--color-void)] overflow-hidden text-[var(--color-text-primary)]">
       <Atmosphere density={28} intensity={0.55} />
 
-      <div className="absolute top-[56px] inset-x-0 z-10">
+      <SyntheticScenarioRibbon
+        label="session vault"
+        hint="scenario sessions only · custom investigations don't persist"
+        whisper
+      />
+      <div className="absolute top-[88px] inset-x-0 z-10">
         <PageHeader
           icon={Archive}
           eyebrow="sessions"

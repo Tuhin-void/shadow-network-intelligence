@@ -120,7 +120,96 @@ def delete_session(request: Request, session_id: str):
 
 @router.get("/orchestrator/status")
 def orchestrator_status(request: Request):
-    return _get_orch(request).status()
+    """Status + opportunistic self-heal. If the GraphClient is offline,
+    attempt a rate-limited reconnect before returning the snapshot so the
+    long-running orchestrator recovers without a restart."""
+    orch = _get_orch(request)
+    client = getattr(orch, "_client", None)
+    if client is not None and getattr(client, "_offline_mode", True):
+        try:
+            client.reconnect_if_offline()
+        except Exception:
+            pass
+        # Refresh orch's cached offline flag so status() returns the
+        # post-reconnect state.
+        orch._is_offline = getattr(client, "_offline_mode", True)
+    return orch.status()
+
+
+class IntentRequest(BaseModel):
+    query: str = Field(..., description="Natural-language investigation query to classify")
+
+
+@router.post("/orchestrator/intent")
+def classify_intent(body: IntentRequest):
+    """Pure-python intent preview. No retrieval, no LLM, sub-millisecond.
+    Returns the workflow label, confidence, matched entity IDs, and — when
+    the intent is unknown — a list of suggested workflows + operational hint.
+    """
+    from orchestration.intent import get_classifier
+    return get_classifier().classify(body.query).to_dict()
+
+
+@router.get("/investigations")
+def list_investigations(limit: int = 50, intent_kind: Optional[str] = None):
+    """Persistent archive of every investigation run by the orchestrator.
+    Disk-backed — survives restart. Newest first."""
+    from orchestration.archive import get_archive
+    if limit < 1:
+        limit = 1
+    if limit > 200:
+        limit = 200
+    return {
+        "investigations": get_archive().list(limit=limit, intent_kind=intent_kind),
+        "stats":          get_archive().stats(),
+    }
+
+
+@router.get("/investigations/{investigation_id}")
+def get_investigation(investigation_id: str):
+    """Full archived investigation — report + (optional) deep_report."""
+    from orchestration.archive import get_archive
+    safe = "".join(c for c in investigation_id if c.isalnum() or c in "._-")
+    if safe != investigation_id:
+        raise HTTPException(status_code=400, detail="invalid investigation_id")
+    rec = get_archive().get(safe)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"investigation {safe} not archived")
+    return rec
+
+
+@router.delete("/investigations/{investigation_id}")
+def delete_investigation(investigation_id: str):
+    from orchestration.archive import get_archive
+    safe = "".join(c for c in investigation_id if c.isalnum() or c in "._-")
+    if safe != investigation_id:
+        raise HTTPException(status_code=400, detail="invalid investigation_id")
+    if not get_archive().delete(safe):
+        raise HTTPException(status_code=404, detail=f"investigation {safe} not archived")
+    return {"ok": True}
+
+
+@router.post("/orchestrator/reconnect")
+def orchestrator_reconnect(request: Request):
+    """Operator-triggered explicit reconnect. Bypasses the rate-limit
+    cooldown so the UI can offer a 'reconnect now' affordance."""
+    orch = _get_orch(request)
+    client = getattr(orch, "_client", None)
+    if client is None:
+        raise HTTPException(status_code=503, detail="graph client unavailable")
+    # Bypass cooldown by clearing the last-attempt timestamp.
+    client._last_reconnect_attempt_at = 0.0
+    ok = False
+    try:
+        ok = client.reconnect_if_offline()
+    except Exception as e:
+        return {"reconnected": False, "online": False, "error": str(e)}
+    orch._is_offline = getattr(client, "_offline_mode", True)
+    return {
+        "reconnected": ok,
+        "online":      not orch._is_offline,
+        "status":      orch.status(),
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
