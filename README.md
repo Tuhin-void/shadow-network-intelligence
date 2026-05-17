@@ -18,6 +18,8 @@ benchmark surface.
 
 </div>
 
+<!-- SCREENSHOT_SLOT: hero-investigation.png · flagship · width=95% · framing notes: docs/screenshots/README.md#1 -->
+
 ---
 
 ## Why this exists
@@ -151,6 +153,8 @@ flowchart TB
     class TG,CSV live
 ```
 
+<!-- SCREENSHOT_SLOT: architecture-diagram.png · static PNG fallback for non-Mermaid renderers · width=85% · framing notes: docs/screenshots/README.md#9 -->
+
 **Single ownership of retrieval.** All graph traversal lives in
 `3_graph_intelligence_core`. The `BenchmarkRunner` (`2_baseline_systems`)
 uses GraphRAG **through an adapter** rather than re-implementing
@@ -170,6 +174,8 @@ in [`10_research/03_architecture_decisions.md`](./10_research/03_architecture_de
 ---
 
 ## The GraphRAG advantage, demonstrated
+
+<!-- SCREENSHOT_SLOT: graphrag-vs-vectorrag.png · thesis centerpiece · width=95% · framing notes: docs/screenshots/README.md#2 -->
 
 ### A. Adversarial structural-recovery evaluation
 
@@ -212,6 +218,8 @@ This is **`benchmark_RUN_20260516_224731_734f11.json`** — 5 queries,
 profile `small`, mock LLM. GraphRAG injects **~11× less prompt context**
 than VectorRAG while producing the only answer with grounded structural
 evidence. The result cache brings warm-replay latency to <50 ms.
+
+<!-- SCREENSHOT_SLOT: benchmark-evidence.png · measured-run UI · width=90% · framing notes: docs/screenshots/README.md#3 -->
 
 > **Important framing:** "11×" is a **prompt-context budget comparison**,
 > not an answer-quality comparison. Judge scoring requires a real LLM (set
@@ -322,6 +330,12 @@ graph is preserved across activations. `/ingest/environment` exposes
 the raw live counts under `physical_state.tg_vertex_counts` so reviewers
 can confirm activation never mutates TG.
 
+<p align="center"><em>Before / after — the same Sources page, before and after the operator clicks Launch:</em></p>
+
+<!-- SCREENSHOT_SLOT: lifecycle-empty.png · empty landing · width=90% · framing notes: docs/screenshots/README.md#4 -->
+
+<!-- SCREENSHOT_SLOT: lifecycle-activated.png · sample activated · width=90% · framing notes: docs/screenshots/README.md#5 -->
+
 ---
 
 ## Sources / Ingestion
@@ -380,6 +394,8 @@ Vertices are upserted before edges automatically. Successful promotion
 auto-flips activation to `uploaded` (or `hybrid` if sample was already
 active). Promoted vertices are also indexed into `OfflineFallback` so
 the upload remains investigatable during a subsequent TG outage.
+
+<!-- SCREENSHOT_SLOT: ingestion-promote.png · ecosystem upload + promote · width=90% · framing notes: docs/screenshots/README.md#6 -->
 
 ---
 
@@ -446,6 +462,8 @@ $ curl -X POST http://localhost:8000/api/v1/investigate \
   }
 }
 ```
+
+<!-- SCREENSHOT_SLOT: investigation-ring.png · ring discovery in the workstation UI · width=90% · framing notes: docs/screenshots/README.md#7 -->
 
 ---
 
@@ -528,6 +546,8 @@ WARNING:clients.graph_client:═════════════════
 
 Self-healing via `POST /orchestrator/reconnect` or the rate-limited
 auto-retry in `/orchestrator/status`.
+
+<!-- SCREENSHOT_SLOT: degraded-mode.png · honest offline UI · width=90% · framing notes: docs/screenshots/README.md#8 -->
 
 ---
 
